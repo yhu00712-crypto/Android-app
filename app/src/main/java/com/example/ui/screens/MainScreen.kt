@@ -39,7 +39,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import com.example.data.model.*
+import com.example.data.skills.CareerPlannerSkill
+import com.example.data.skills.CareerPlanningReport
+import com.example.ui.components.DeepSeekApiDialog
 import com.example.ui.viewmodel.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,6 +118,12 @@ fun MainScreen(
                 1 -> CampusCoCreateTabScreen(viewModel)
                 2 -> ChatTabScreen(viewModel)
                 3 -> UserProfileTabScreen(viewModel)
+            }
+
+            // DeepSeek / AI 大模型 API 配置弹窗 (支持全局调出)
+            val showApiConfigDialog by viewModel.showApiConfigDialog.collectAsState()
+            if (showApiConfigDialog) {
+                DeepSeekApiDialog(viewModel = viewModel)
             }
         }
     }
@@ -262,12 +277,20 @@ fun OccupationCard(
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 if (mandatory.isNotEmpty()) {
-                                    Text(
-                                        text = "🔴 法定硬性红线上岗准入 (必须持有):",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD32F2F)
-                                    )
+                                    Column {
+                                        Text(
+                                            text = "🔴 准入类证书 (法定硬性 · 无证不得执业):",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFD32F2F)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "依法实行从业准入：关系国家安全与公众生命财产安全，无证不得执业。",
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFFD32F2F).copy(alpha = 0.85f)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     mandatory.forEach { rel ->
                                         CertRelationRow(rel.certificate.name, rel.benefitDescription)
@@ -276,12 +299,20 @@ fun OccupationCard(
                                 }
 
                                 if (preferred.isNotEmpty()) {
-                                    Text(
-                                        text = "🟡 行业竞争力优选加分 (大厂国企首选):",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF57C00)
-                                    )
+                                    Column {
+                                        Text(
+                                            text = "🟡 水平评价类证书 (能力评价 · 供选聘与职称参考):",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0284C7)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "非强制执业准入：衡量专业技术水平，供用人单位聘用、定岗定薪与评定职称参考。",
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFF0284C7).copy(alpha = 0.85f)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     preferred.forEach { rel ->
                                         CertRelationRow(rel.certificate.name, rel.benefitDescription)
@@ -305,7 +336,7 @@ fun OccupationCard(
                                     Text("✨", fontSize = 13.sp)
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "Gemini AI 赋能深度评析 (政策条款与加分权重)",
+                                        text = "AI 深度智库评析 (政策条款与加分权重)",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -344,14 +375,14 @@ fun OccupationCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "🔮 Gemini AI 正在结合法规与云知识库推导对口证书...",
+                                text = "🔮 AI 智脑正在结合法规与知识库推导对口证书...",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                     } else if (relatedCerts.isEmpty() && aiMatches.isNullOrEmpty()) {
                         Text(
-                            text = "点击上方刷新按钮，即可由 Gemini AI 智能分析该岗位的考证红线与加分资质。",
+                            text = "点击上方刷新按钮，即可由 AI 智脑智能分析该岗位的考证红线与加分资质。",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -425,6 +456,21 @@ fun CertificateCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val policyInfo = QualificationPolicyHelper.getCategoryInfo(certificate.name)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (policyInfo.isAccess) Color(0xFFFEE2E2) else Color(0xFFE0F2FE),
+                        border = BorderStroke(0.6.dp, if (policyInfo.isAccess) Color(0xFFEF4444) else Color(0xFF38BDF8))
+                    ) {
+                        Text(
+                            text = if (policyInfo.isAccess) "🚨 准入类：无证不得执业" else "💡 水平评价类：衡量技术水平，非强制执业",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (policyInfo.isAccess) Color(0xFFB91C1C) else Color(0xFF0369A1),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -455,6 +501,40 @@ fun CertificateCard(
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            val policyInfo = QualificationPolicyHelper.getCategoryInfo(certificate.name)
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (policyInfo.isAccess) Color(0xFFFEF2F2) else Color(0xFFF0F9FF),
+                border = BorderStroke(0.6.dp, if (policyInfo.isAccess) Color(0xFFFCA5A5) else Color(0xFFBAE6FD)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (policyInfo.isAccess) "🚨【准入类说明】" else "💡【水平评价类说明】",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (policyInfo.isAccess) Color(0xFFB91C1C) else Color(0xFF0369A1)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = policyInfo.slogan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (policyInfo.isAccess) Color(0xFFDC2626) else Color(0xFF0284C7)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.5.dp))
+                    Text(
+                        text = policyInfo.explanation,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             // 展开部分：查询持本证书可以拓展的岗位和加分通路
             AnimatedVisibility(
@@ -533,12 +613,19 @@ fun CertificateCard(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = if (rel.requirementType == "MANDATORY") "🔴 硬性法定准入" else "🟡 竞争力首选加分",
+                                                text = if (rel.requirementType == "MANDATORY") "🔴 准入类 (无证不得执业)" else "🟡 水平评价类 (衡量技术水平)",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (rel.requirementType == "MANDATORY") Color(0xFFD32F2F) else Color(0xFFF57C00)
+                                                color = if (rel.requirementType == "MANDATORY") Color(0xFFD32F2F) else Color(0xFF0284C7)
                                             )
                                         }
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = if (rel.requirementType == "MANDATORY") "【准入类规定】依法实行准入控制，无证不得执业。"
+                                                   else "【水平评价类说明】衡量专业技术水平与实操能力，非强制执业准入，供用人单位聘任及定级参考。",
+                                            fontSize = 10.5.sp,
+                                            color = if (rel.requirementType == "MANDATORY") Color(0xFFDC2626).copy(alpha = 0.85f) else Color(0xFF0284C7).copy(alpha = 0.85f)
+                                        )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = rel.benefitDescription,
@@ -563,7 +650,7 @@ fun CertificateCard(
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
-                                    text = "✨ Gemini AI 反向拓宽就业方向 (政策条款与加分权重)",
+                                    text = "✨ AI 智脑反向拓宽就业方向 (政策条款与加分权重)",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.secondary
@@ -601,14 +688,14 @@ fun CertificateCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "🔮 Gemini AI 正在极速反向拓宽对口岗位...",
+                                text = "🔮 AI 智脑正在极速反向拓宽对口岗位...",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.secondary
                             )
                         }
                     } else if (relatedOccs.isEmpty() && aiMatches.isNullOrEmpty()) {
                         Text(
-                            text = "点击上方刷新按钮，即可由 Gemini AI 智能反向推导该证书可以拓展的高薪职业跑道。",
+                            text = "点击上方刷新按钮，即可由 AI 智脑智能反向推导该证书可以拓展的高薪职业跑道。",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -627,8 +714,10 @@ fun AiRelationRow(
     analysis: String
 ) {
     val isMandatory = requirementType == "MANDATORY"
-    val badgeColor = if (isMandatory) Color(0xFFD32F2F) else Color(0xFFF57C00)
-    val badgeText = if (isMandatory) "🔴 法定硬性门槛" else "🟡 核心优势加分"
+    val badgeColor = if (isMandatory) Color(0xFFD32F2F) else Color(0xFF0284C7)
+    val badgeText = if (isMandatory) "🚨 准入类 (无证不得执业)" else "💡 水平评价类 (衡量技术水平)"
+    val policyNotice = if (isMandatory) "依法实行从业准入：关系公共安全与公众利益，无证不得执业。"
+                       else "非强制执业准入：衡量专业技术水平，供用人单位聘用、定岗定薪与评定职称参考。"
 
     Column(
         modifier = Modifier
@@ -668,6 +757,12 @@ fun AiRelationRow(
                 )
             }
         }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = policyNotice,
+            fontSize = 10.5.sp,
+            color = badgeColor.copy(alpha = 0.85f)
+        )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = analysis,
@@ -745,7 +840,153 @@ fun RecruitersListScreen(viewModel: CareerViewModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(recruitersList) { recruiter ->
+            val aiMentors = recruitersList.filter { it.id == "AGENT_RESUME_POLISH" || it.id == "TUTOR_AI" }
+            val hrList = recruitersList.filter { it.id != "AGENT_RESUME_POLISH" && it.id != "TUTOR_AI" }
+
+            if (aiMentors.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "✨ AI 导师与智能工坊 (置顶)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        FilledTonalButton(
+                            onClick = { viewModel.openApiConfigDialog() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("DeepSeek API", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                items(aiMentors) { recruiter ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.startChatWith(recruiter) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 头像
+                            Box(
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(recruiter.avatarColor)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (recruiter.id == "AGENT_RESUME_POLISH") "🔮" else "🧭",
+                                    fontSize = 24.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = recruiter.name,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        ) {
+                                            Text(
+                                                text = "📌 置顶",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = recruiter.lastMessageTime,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = recruiter.company,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = recruiter.lastMessage,
+                                    fontSize = 13.sp,
+                                    color = if (recruiter.hasUnread) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (recruiter.hasUnread) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+
+                            // 已读未读红点标记
+                            if (recruiter.hasUnread) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Red)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🏢 名企官方 HR & 面试官直聊",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "共 ${hrList.size} 位名企招聘负责人",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            items(hrList) { recruiter ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -851,10 +1092,79 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                 }
             },
+            actions = {
+                if (recruiter.id == "TUTOR_AI" || recruiter.id == "AGENT_RESUME_POLISH") {
+                    FilledTonalButton(
+                        onClick = { viewModel.openApiConfigDialog() },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("API配置", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
         )
+
+        // 若为置顶 AI 导师，显示 DeepSeek 引擎接入状态横幅
+        if (recruiter.id == "TUTOR_AI" || recruiter.id == "AGENT_RESUME_POLISH") {
+            val deepSeekKey by viewModel.deepSeekApiKey.collectAsState()
+            val deepSeekModelName by viewModel.deepSeekModel.collectAsState()
+            val provider by viewModel.aiProvider.collectAsState()
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.openApiConfigDialog() },
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🤖", fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "DeepSeek 驱动 ($deepSeekModelName)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (deepSeekKey.isNotBlank()) Color(0xFF2E7D32) else Color(0xFFE65100)
+                            ) {
+                                Text(
+                                    text = if (deepSeekKey.isNotBlank()) "已连通" else "点此配置Key",
+                                    fontSize = 9.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (deepSeekKey.isNotBlank()) "点击调整模型或修改 API 密钥" else "未配置私有密钥（点击快速添加 DeepSeek API Key）",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "配置 >",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
 
         // 聊天泡泡区域
         LazyColumn(
@@ -882,6 +1192,7 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
                 "HR_BYTEDANCE" -> listOf("我有法考A证，何时可以面试？", "岗位需要考什么证书？")
                 "TECH_HUAWEI" -> listOf("我有软考中级，请问怎么匹配？", "技术岗位需要哪些证书要求？")
                 "TUTOR_AI" -> listOf("我该怎么规划我的大学考证树？", "帮我分析低门槛高成长岗位")
+                "AGENT_RESUME_POLISH" -> listOf("在比赛中主要负责做PPT和写策划案", "在学生会负责拉赞助和跑腿联系商家", "社团活动中主要负责组织和签到")
                 else -> listOf("需要哪些法定红线证书？", "起薪待遇如何？")
             }
             suggestions.forEach { suggestion ->
@@ -944,34 +1255,42 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
 @Composable
 fun ChatBubble(msg: ChatMessage) {
     val isUser = msg.sender == "USER"
+    val planningReport = remember(msg.content) {
+        if (!isUser) CareerPlannerSkill.parseReport(msg.content) else null
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-            modifier = Modifier.fillMaxWidth(0.85f)
+            modifier = Modifier.fillMaxWidth(if (planningReport != null) 0.95f else 0.85f)
         ) {
-            Box(
-                modifier = Modifier
-                    .background(
-                        color = if (isUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = if (isUser) 16.dp else 2.dp,
-                            bottomEnd = if (isUser) 2.dp else 16.dp
+            if (planningReport != null) {
+                CareerPlanReportBubble(report = planningReport)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isUser) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = if (isUser) 16.dp else 2.dp,
+                                bottomEnd = if (isUser) 2.dp else 16.dp
+                            )
                         )
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = msg.content,
+                        fontSize = 14.sp,
+                        color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
                     )
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = msg.content,
-                    fontSize = 14.sp,
-                    color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
-                )
+                }
             }
             Spacer(modifier = Modifier.height(2.dp))
             Row(
@@ -997,6 +1316,194 @@ fun ChatBubble(msg: ChatMessage) {
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CareerPlanReportBubble(report: CareerPlanningReport) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 1. 顶部 Header 与匹配度得分徽章
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🧭", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "定制职业规划方案",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (report.matchScore >= 80) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
+                    border = BorderStroke(
+                        1.dp,
+                        if (report.matchScore >= 80) Color(0xFF2E7D32) else Color(0xFFEF6C00)
+                    )
+                ) {
+                    Text(
+                        text = "综合匹配度: ${report.matchScore}分",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (report.matchScore >= 80) Color(0xFF2E7D32) else Color(0xFFEF6C00),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // 2. 总体一句话评估
+            if (report.careerSummary.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ) {
+                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
+                        Text("💡", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = report.careerSummary,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 17.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // 3. 核心优势与潜在差距
+            if (report.advantages.isNotEmpty() || report.gaps.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (report.advantages.isNotEmpty()) {
+                        Text("🟢 核心优势亮点", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                        report.advantages.forEach { adv ->
+                            Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(start = 4.dp)) {
+                                Text("✓", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(adv, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+
+                    if (report.gaps.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("⚠️ 劣势与短板突破点", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                        report.gaps.forEach { gap ->
+                            Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(start = 4.dp)) {
+                                Text("!", fontSize = 11.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(gap, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. 短期与中期成长路线图
+            if (report.shortTermRoadmap != null || report.midTermRoadmap != null) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("📅 阶段推进路线图", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    report.shortTermRoadmap?.let { st ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text("🚀 ${st.timeline}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                st.actionItems.forEach { action ->
+                                    Text("• $action", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    report.midTermRoadmap?.let { mt ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text("📈 ${mt.timeline}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                mt.actionItems.forEach { action ->
+                                    Text("• $action", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp, start = 4.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. 建议考取的重点证书
+            if (report.recommendedCertificates.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("📜 重点推荐考证清单", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    report.recommendedCertificates.forEach { cert ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(cert.certName, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(cert.reason, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 14.sp)
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = when (cert.priority.uppercase()) {
+                                        "HIGH" -> Color(0xFFFFEBEE)
+                                        "MEDIUM" -> Color(0xFFFFF3E0)
+                                        else -> Color(0xFFF5F5F5)
+                                    }
+                                ) {
+                                    Text(
+                                        text = when (cert.priority.uppercase()) {
+                                            "HIGH" -> "极高推荐"
+                                            "MEDIUM" -> "建议考取"
+                                            else -> "备选参考"
+                                        },
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = when (cert.priority.uppercase()) {
+                                            "HIGH" -> Color(0xFFC62828)
+                                            "MEDIUM" -> Color(0xFFEF6C00)
+                                            else -> Color(0xFF616161)
+                                        },
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1257,6 +1764,50 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("切换皮肤 ➔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // DeepSeek / AI 大模型 API 配置项
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.openApiConfigDialog() }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("🤖", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                val deepSeekKey by viewModel.deepSeekApiKey.collectAsState()
+                                val deepSeekModelName by viewModel.deepSeekModel.collectAsState()
+                                Text(
+                                    text = "DeepSeek AI 接口配置 (API Key)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (deepSeekKey.isNotBlank()) "已配置私有密钥 · 当前模型: $deepSeekModelName" else "未配置私有密钥 · 点击添加新 API",
+                                    fontSize = 10.sp,
+                                    color = if (deepSeekKey.isNotBlank()) MaterialTheme.colorScheme.primary else Color(0xFFD9534F)
+                                )
+                            }
+                        }
+                        FilledTonalButton(
+                            onClick = { viewModel.openApiConfigDialog() },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("配置", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -2206,6 +2757,387 @@ fun EmptyStateView(tip: String) {
             textAlign = TextAlign.Center,
             lineHeight = 20.sp
         )
+    }
+}
+
+// =========================================================
+// 🤖 职业未检索到时的 AI 结构化输出组件 (严格按照固定 JSON 规范)
+// =========================================================
+@Composable
+fun AiNotFoundOutputView(
+    searchQuery: String,
+    searchMode: Int,
+    isLoading: Boolean,
+    result: com.example.data.network.AiSearchOutput?,
+    onRetry: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: 📋 固定 JSON 格式输出, 1: 🎴 智能卡片视图
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // 1. 顶部状态横幅
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, if (searchMode == 0) Color(0xFF6C63FF).copy(alpha = 0.35f) else Color(0xFF009688).copy(alpha = 0.35f)),
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (searchMode == 0) Color(0xFF6C63FF).copy(alpha = 0.15f) else Color(0xFF009688).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (searchMode == 0) "🎯 配证书 · AI规划" else "🔍 找职业 · AI拓维",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (searchMode == 0) Color(0xFF6C63FF) else Color(0xFF009688),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "AI 智脑推导",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = onRetry,
+                        enabled = !isLoading,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text(
+                            text = if (isLoading) "推导中..." else "🔄 重新生成",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "系统在现有数据库中未检索到职业「$searchQuery」，已自动调用大模型针对该职业进行专业深度推导，并按照固定 JSON 格式规范输出结构化匹配方案。",
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+
+        // 2. 加载中状态
+        if (isLoading) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(36.dp),
+                        color = if (searchMode == 0) Color(0xFF6C63FF) else Color(0xFF009688),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "正在调用 AI 大模型解析「$searchQuery」...",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "严格遵循固定 JSON 数据规范输出中，请稍候...",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else if (result != null) {
+            // 3. Tab 切换栏：固定 JSON 格式 vs 智能卡片视图
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { selectedTab = 0 }
+                ) {
+                    Text(
+                        text = "📋 固定的 JSON 格式输出",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        color = if (selectedTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { selectedTab = 1 }
+                ) {
+                    Text(
+                        text = "🎴 智能卡片视图 (${result.items.size})",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        color = if (selectedTab == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+
+            // 4. Tab 0: 原始固定 JSON 格式展示与复制
+            if (selectedTab == 0) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF1E1E2E), // 深色代码编辑器风格
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = CircleShape, color = Color(0xFFFF5F56), modifier = Modifier.size(10.dp)) {}
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(shape = CircleShape, color = Color(0xFFFFBD2E), modifier = Modifier.size(10.dp)) {}
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(shape = CircleShape, color = Color(0xFF27C93F), modifier = Modifier.size(10.dp)) {}
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "output.json",
+                                    fontSize = 11.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(result.jsonString))
+                                    Toast.makeText(context, "已成功复制固定格式 JSON 到剪切板！", Toast.LENGTH_SHORT).show()
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF313244),
+                                    contentColor = Color(0xFFA6E3A1)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("📋 一键复制 JSON", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 0.8.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = result.jsonString,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFFA6E3A1)
+                            )
+                        }
+                    }
+                }
+            } else {
+                // 5. Tab 1: 智能卡片视图
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    result.items.forEachIndexed { index, item ->
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            shadowElevation = 1.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                val isMandatory = item.requirementType == "MANDATORY"
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "${index + 1}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 14.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isMandatory) Color(0xFFFEE2E2) else Color(0xFFE0F2FE)
+                                    ) {
+                                        Text(
+                                            text = if (isMandatory) "🚨 准入类 · 无证不得执业" else "💡 水平评价类 · 衡量技术水平",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isMandatory) Color(0xFFDC2626) else Color(0xFF0284C7),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = if (isMandatory) "【准入类规定】国家依法依规实行从业准入，无证不得执业。"
+                                           else "【水平评价类规定】用于评价专业技能素养，供招聘定岗定薪与职称评定参考，非强制执业准入。",
+                                    fontSize = 10.5.sp,
+                                    color = if (isMandatory) Color(0xFFDC2626).copy(alpha = 0.85f) else Color(0xFF0284C7).copy(alpha = 0.85f)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFFFF3CD)
+                                    ) {
+                                        Text(
+                                            text = "匹配度 ${item.score}%",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF856404),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (searchMode == 0) "对应证书资质代码规范" else "对口岗位核心竞争力",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(modifier = Modifier.padding(10.dp)) {
+                                        Text("📜 ", fontSize = 12.sp)
+                                        Text(
+                                            text = item.policyAnalysis,
+                                            fontSize = 12.sp,
+                                            lineHeight = 17.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // 6. 空结果但未开始推导提示
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "未检索到与「$searchQuery」匹配的记录",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "点击下方按钮立即调用 AI 专家按照固定 JSON 格式为您精准推导匹配",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onRetry) {
+                        Text("🤖 立即调用 AI 推导并输出 JSON", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -5297,7 +6229,10 @@ fun ResumeOptimizationScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
-    val jobsList by viewModel.recruitingJobs.collectAsState()
+    val jobsList by viewModel.filteredRecruitingJobs.collectAsState()
+    val selectedJobIndustry by viewModel.selectedJobIndustry.collectAsState()
+    val selectedJobCity by viewModel.selectedJobCity.collectAsState()
+    val jobSearchQuery by viewModel.jobSearchQuery.collectAsState()
     val isProfileCompleted by viewModel.isProfileCompleted.collectAsState()
     val recruitersList by viewModel.recruiters.collectAsState()
 
@@ -5320,6 +6255,16 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
     val isBackendSearching by viewModel.isBackendSearching.collectAsState()
     val aiOccupationMatches by viewModel.aiOccupationMatches.collectAsState()
     val aiCertificateMatches by viewModel.aiCertificateMatches.collectAsState()
+
+    val aiSearchResult by viewModel.aiSearchResult.collectAsState()
+    val isAiSearchLoading by viewModel.isAiSearchLoading.collectAsState()
+
+    LaunchedEffect(searchQuery, searchMode, certificatesList.size, occupationsList.size) {
+        val trimmed = searchQuery.trim()
+        if (trimmed.isNotEmpty() && certificatesList.isEmpty() && occupationsList.isEmpty()) {
+            viewModel.triggerAiSearchForNotFound(trimmed, searchMode)
+        }
+    }
 
     var showApplyDialog by remember { mutableStateOf(false) }
     var applyDialogMessage by remember { mutableStateOf("") }
@@ -5356,18 +6301,34 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "证道职途",
+                                fontSize = 20.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color.White.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "CertPass",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "职场直通车 · 考证智能双向检索",
-                            fontSize = 18.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "一端精准查岗点亮通关路径 · 一端反拓名企求职视野",
+                            text = "名企持证直聘 · 考证职业智能双向检索",
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.85f)
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.9f)
                         )
                     }
                     Surface(
@@ -5654,6 +6615,80 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        // 📜 职业资格两类划分政策释义卡片 (准入类 vs 水平评价类)
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("📜", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "国家职业资格分类政策释义：",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFEE2E2),
+                        border = BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "🚨 准入类：无证不得执业",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFDC2626)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "关系公共安全与公众利益，国家依法依规实行从业准入，必须先取得证书方可独立执业（如法考、CPA、教资、医师等）。",
+                                fontSize = 9.5.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFF7F1D1D)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE0F2FE),
+                        border = BorderStroke(0.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "💡 水平评价类：衡量技术水平",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0284C7)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "非强制执业准入，用于评价专业技能素养，供用人单位聘任、定级定薪与职称评定参考（如软考、CATTI等）。",
+                                fontSize = 9.5.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFF075985)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // 主体内容区：若未输入搜索词，展示名企硬性持证直聘专区；若输入搜索词，展示实时网状检索结果
         Box(modifier = Modifier.weight(1f)) {
             if (searchQuery.isEmpty()) {
@@ -5663,26 +6698,254 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                     modifier = Modifier.fillMaxSize()
                 ) {
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "🔥 名企硬性持证直聘专区",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "共 ${jobsList.size} 个优质岗位",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Column {
+                            // 标题与统计及重置筛选按钮
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "🔥 名企硬性持证直聘专区",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = "${jobsList.size}个在招",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                val isFilterActive = jobSearchQuery.isNotBlank() || selectedJobCity != "全国" || selectedJobIndustry != "全部"
+                                if (isFilterActive) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { viewModel.resetJobFilters() }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("🔄", fontSize = 10.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "重置筛选",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // 🔍 岗位专用即时搜索框
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                shadowElevation = 1.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        if (jobSearchQuery.isEmpty()) {
+                                            Text(
+                                                text = "搜索岗位、名企、城市、证书要求...",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        androidx.compose.foundation.text.BasicTextField(
+                                            value = jobSearchQuery,
+                                            onValueChange = { viewModel.jobSearchQuery.value = it },
+                                            singleLine = true,
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    if (jobSearchQuery.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { viewModel.jobSearchQuery.value = "" },
+                                            modifier = Modifier.size(20.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = "清空",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // 📍 城市所在地快捷筛选栏
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "📍 城市:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val cities = listOf("全国", "北京", "上海", "深圳", "广州", "杭州", "成都", "武汉", "南京", "长沙")
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(cities) { city ->
+                                        val isSelected = selectedJobCity == city
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { viewModel.selectedJobCity.value = city },
+                                            label = {
+                                                Text(
+                                                    text = city,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                labelColor = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // 💼 岗位行业分类筛选 Chip 栏
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "💼 行业:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val industries = listOf("全部", "互联网/IT", "金融/证券", "财会/咨询", "教育/文传", "制造/工程", "医药/健康", "文旅/新兴", "绿色/能源")
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(industries) { ind ->
+                                        val isSelected = selectedJobIndustry == ind
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { viewModel.selectedJobIndustry.value = ind },
+                                            label = {
+                                                Text(
+                                                    text = ind,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                labelColor = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    items(jobsList) { job ->
+                    if (jobsList.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 20.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(28.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("🔎", fontSize = 38.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "暂无匹配的招聘岗位",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "在城市【$selectedJobCity】和行业【$selectedJobIndustry】下未检索到相关岗位，请尝试调整筛选条件",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = { viewModel.resetJobFilters() },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Text("🔄 一键清空全部筛选条件", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(jobsList) { job ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -5709,7 +6972,7 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = job.title,
-                                            fontSize = 16.sp,
+                                            fontSize = 15.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
@@ -5717,6 +6980,18 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                            ) {
+                                                Text(
+                                                    text = job.industry,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
                                             Text(
                                                 text = job.company,
                                                 fontSize = 12.sp,
@@ -5736,7 +7011,7 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                     }
                                     Text(
                                         text = job.salary,
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.Black,
                                         color = Color(0xFFE65100)
                                     )
@@ -5753,6 +7028,78 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
+
+                                if (job.mandatoryCerts.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "🔒 硬性准入:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFD90429)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            items(job.mandatoryCerts) { cert ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFFFFF0F3),
+                                                    border = BorderStroke(1.dp, Color(0xFFFFB3C1))
+                                                ) {
+                                                    Text(
+                                                        text = cert,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFFC9184A),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (job.preferredCerts.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "⭐ 优先加分:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF023E8A)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            items(job.preferredCerts) { cert ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFFE0F7FA),
+                                                    border = BorderStroke(1.dp, Color(0xFF80DEEA))
+                                                ) {
+                                                    Text(
+                                                        text = cert,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF0077B6),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -5778,13 +7125,24 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                             }
                         }
                     }
+                    }
                 }
             } else {
                 if (searchMode == 0) {
-                    // 🎯 配证书 -> 调用 certificates 证书数据库表格
-                    if (certificatesList.isEmpty()) {
-                        EmptyStateView("未找到与「$searchQuery」相关的证书名称，请输入其他关键词")
-                    } else {
+                    // 🎯 配证书 -> 检查是否有证书或职业匹配
+                    val hasCertMatches = certificatesList.isNotEmpty()
+                    val hasOccMatches = occupationsList.isNotEmpty()
+
+                    if (!hasCertMatches && !hasOccMatches) {
+                        // 搜索框内输入的职业搜索不到 -> 调用 AI 按照固定的 json 格式输出
+                        AiNotFoundOutputView(
+                            searchQuery = searchQuery,
+                            searchMode = 0,
+                            isLoading = isAiSearchLoading,
+                            result = aiSearchResult,
+                            onRetry = { viewModel.triggerAiSearchForNotFound(searchQuery, 0, forceRefresh = true) }
+                        )
+                    } else if (hasCertMatches) {
                         LazyColumn(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -5806,11 +7164,6 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                 )
                             }
                         }
-                    }
-                } else {
-                    // 🔍 找职业 -> 调用 occupations 职业数据库表格
-                    if (occupationsList.isEmpty()) {
-                        EmptyStateView("未找到与「$searchQuery」相关的职业岗位，请输入其他关键词")
                     } else {
                         LazyColumn(
                             contentPadding = PaddingValues(16.dp),
@@ -5829,6 +7182,65 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                                     onClick = {
                                         if (isExpanded) viewModel.selectOccupation(null)
                                         else viewModel.selectOccupation(occ.id, occ)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // 🔍 找职业 -> 调用 occupations 职业数据库表格
+                    val hasOccMatches = occupationsList.isNotEmpty()
+                    val hasCertMatches = certificatesList.isNotEmpty()
+
+                    if (!hasOccMatches && !hasCertMatches) {
+                        // 搜索框内输入的职业搜索不到 -> 调用 AI 按照固定的 json 格式输出
+                        AiNotFoundOutputView(
+                            searchQuery = searchQuery,
+                            searchMode = 1,
+                            isLoading = isAiSearchLoading,
+                            result = aiSearchResult,
+                            onRetry = { viewModel.triggerAiSearchForNotFound(searchQuery, 1, forceRefresh = true) }
+                        )
+                    } else if (hasOccMatches) {
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(occupationsList) { occ ->
+                                val isExpanded = occ.id == selectedOccupationId
+                                OccupationCard(
+                                    occupation = occ,
+                                    isExpanded = isExpanded,
+                                    relatedCerts = if (isExpanded) relatedCerts else emptyList(),
+                                    aiMatches = if (isExpanded) aiOccupationMatches[occ.id] else null,
+                                    isAiLoading = isAiMatchingLoading && isExpanded,
+                                    onTriggerAi = { viewModel.triggerAiMatchForOccupation(occ, forceRefresh = true) },
+                                    onClick = {
+                                        if (isExpanded) viewModel.selectOccupation(null)
+                                        else viewModel.selectOccupation(occ.id, occ)
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(certificatesList) { cert ->
+                                val isExpanded = cert.id == selectedCertificateId
+                                CertificateCard(
+                                    certificate = cert,
+                                    isExpanded = isExpanded,
+                                    relatedOccs = if (isExpanded) relatedOccs else emptyList(),
+                                    aiMatches = if (isExpanded) aiCertificateMatches[cert.id] else null,
+                                    isAiLoading = isAiMatchingLoading && isExpanded,
+                                    onTriggerAi = { viewModel.triggerAiMatchForCertificate(cert, forceRefresh = true) },
+                                    onClick = {
+                                        if (isExpanded) viewModel.selectCertificate(null)
+                                        else viewModel.selectCertificate(cert.id, cert)
                                     }
                                 )
                             }

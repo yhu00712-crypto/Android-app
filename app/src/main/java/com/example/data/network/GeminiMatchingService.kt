@@ -20,6 +20,14 @@ data class AiMatchedItem(
     val policyAnalysis: String       // 权威政策红线与竞争力解析
 )
 
+// 职业未检索到时的 AI 结构化匹配结果输出
+data class AiSearchOutput(
+    val query: String,
+    val mode: Int, // 0: 配证书, 1: 找职业
+    val items: List<AiMatchedItem>,
+    val jsonString: String
+)
+
 object GeminiMatchingService {
     private const val TAG = "GeminiMatchingService"
 
@@ -95,14 +103,99 @@ object GeminiMatchingService {
             }
         }
 
+    /**
+     * 3. 搜索未收录职业时调用 AI 按照固定的 JSON 格式输出匹配数据
+     */
+    suspend fun matchUnknownOccupation(query: String, mode: Int): AiSearchOutput =
+        withContext(Dispatchers.IO) {
+            val prompt = if (mode == 0) {
+                """
+                    你是一名国家人社部与高校就业指导中心权威考证规划专家。
+                    目标职业：【$query】
+                    当前在国家标准数据库中尚未检索到该具体职业条目。请你针对该职业的典型工作职责与行业技术规范，严格按照行业标准为其推导匹配 3~5 本高价值权威专业证书或法定执业资格。
+                    
+                    【严格分类规则】：
+                    - requirementType 必须为 "MANDATORY"（国家法规规定的法定准入/持证上岗红线门槛）或 "PREFERRED"（名企大厂/央国企招聘定级与津贴加分项）。
+                    - score 必须为 80~99 之间的匹配度整数。
+                    - policyAnalysis 必须具体说明依据的国家政策条文、招考红线或大厂招聘偏好。
+                    
+                    【输出规范】：
+                    必须直接输出纯合法的 JSON 数组，严禁包含任何 Markdown 格式代码块标记（如 ```json 等），严格遵循以下固定 JSON 格式：
+                    [
+                      {
+                        "title": "证书全称",
+                        "requirementType": "MANDATORY",
+                        "score": 96,
+                        "policyAnalysis": "政策红线或加分理由"
+                      }
+                    ]
+                """.trimIndent()
+            } else {
+                """
+                    你是一名国家职业发展与高校就业指导中心权威专家。
+                    目标检索：【$query】
+                    当前在数据库中尚未检索到该职业岗位条目。请你针对该方向，为其智能推导匹配 3~5 个对口度极高的具体就业岗位与职业发展路径（涵盖国家公务员、央国企、大厂或专业机构）。
+                    
+                    【严格分类规则】：
+                    - requirementType 必须为 "MANDATORY"（主干核心对口职业）或 "PREFERRED"（优选拓展或交叉新兴职业）。
+                    - score 必须为 80~99 之间的匹配度整数。
+                    - policyAnalysis 必须说明该岗位的核心壁垒、就业前景与任职门槛。
+                    
+                    【输出规范】：
+                    必须直接输出纯合法的 JSON 数组，严禁包含任何 Markdown 格式代码块标记（如 ```json 等），严格遵循以下固定 JSON 格式：
+                    [
+                      {
+                        "title": "职业岗位名称",
+                        "requirementType": "MANDATORY",
+                        "score": 92,
+                        "policyAnalysis": "核心壁垒与就业前景分析"
+                      }
+                    ]
+                """.trimIndent()
+            }
+
+            try {
+                val (items, jsonStr) = callGeminiWithJson(prompt)
+                if (items.isNotEmpty()) {
+                    AiSearchOutput(query, mode, items, jsonStr)
+                } else {
+                    val fallbackItems = if (mode == 0) getFallbackCertificates(query) else getFallbackOccupations(query)
+                    val fallbackJson = formatItemsToJson(fallbackItems)
+                    AiSearchOutput(query, mode, fallbackItems, fallbackJson)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Gemini search matching error: ${e.message}", e)
+                val fallbackItems = if (mode == 0) getFallbackCertificates(query) else getFallbackOccupations(query)
+                val fallbackJson = formatItemsToJson(fallbackItems)
+                AiSearchOutput(query, mode, fallbackItems, fallbackJson)
+            }
+        }
+
+    fun formatItemsToJson(items: List<AiMatchedItem>): String {
+        val array = JSONArray()
+        for (item in items) {
+            val obj = JSONObject()
+            obj.put("title", item.title)
+            obj.put("requirementType", item.requirementType)
+            obj.put("score", item.score)
+            obj.put("policyAnalysis", item.policyAnalysis)
+            array.put(obj)
+        }
+        return array.toString(2)
+    }
+
     private fun callGemini(promptText: String): List<AiMatchedItem> {
+        return callGeminiWithJson(promptText).first
+    }
+
+    private fun callGeminiWithJson(promptText: String): Pair<List<AiMatchedItem>, String> {
         var apiKey = BuildConfig.GEMINI_API_KEY.trim().trim('"', '\'', ' ')
         if (apiKey.startsWith("GEMINI_API_KEY", ignoreCase = true)) {
             apiKey = apiKey.substringAfter("=").trim().trim('"', '\'', ' ')
         }
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "GEMINI_API_KEY 未配置真实密钥，触发智能离线兜底规则")
-            return emptyList()
+            return Pair(emptyList(), "")
         }
 
         val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
@@ -125,18 +218,18 @@ object GeminiMatchingService {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.e(TAG, "Gemini API HTTP Error: ${response.code} ${response.message}")
-                return emptyList()
+                return Pair(emptyList(), "")
             }
-            val respString = response.body?.string() ?: return emptyList()
+            val respString = response.body?.string() ?: return Pair(emptyList(), "")
 
             val root = JSONObject(respString)
-            val candidates = root.optJSONArray("candidates") ?: return emptyList()
-            if (candidates.length() == 0) return emptyList()
+            val candidates = root.optJSONArray("candidates") ?: return Pair(emptyList(), "")
+            if (candidates.length() == 0) return Pair(emptyList(), "")
 
             val firstCandidate = candidates.getJSONObject(0)
-            val content = firstCandidate.optJSONObject("content") ?: return emptyList()
-            val parts = content.optJSONArray("parts") ?: return emptyList()
-            if (parts.length() == 0) return emptyList()
+            val content = firstCandidate.optJSONObject("content") ?: return Pair(emptyList(), "")
+            val parts = content.optJSONArray("parts") ?: return Pair(emptyList(), "")
+            if (parts.length() == 0) return Pair(emptyList(), "")
 
             val text = parts.getJSONObject(0).optString("text", "").trim()
             val cleanJson = if (text.startsWith("```json")) {
@@ -160,7 +253,7 @@ object GeminiMatchingService {
                     )
                 )
             }
-            return list
+            return Pair(list, jsonArray.toString(2))
         }
     }
 
@@ -216,14 +309,30 @@ object GeminiMatchingService {
                 AiMatchedItem("注册信息安全专业人员 (CISP)", "MANDATORY", 98, "中国信息安全测评中心官方背书，大厂网安合规与等保测评必备资质。"),
                 AiMatchedItem("软件设计师 (软考中级)", "PREFERRED", 90, "计算机技术与软件中级职称，事业单位与国企评薪硬性指标。")
             )
-            name.contains("后") || name.contains("软") || name.contains("程") || name.contains("云") || name.contains("数") -> listOf(
+            name.contains("后") || name.contains("软") || name.contains("程") || name.contains("云") || name.contains("数") || name.contains("ai") || name.contains("算法") || name.contains("智能") -> listOf(
                 AiMatchedItem("软件设计师 (软考中级)", "PREFERRED", 94, "工信部与人社部中级工程师职称，入编、国企评级及落户绿色通道。"),
-                AiMatchedItem("程序员 (软考初级)", "PREFERRED", 88, "高校低年级与非科班同学证明代码规范与算法基本功的高效凭证。"),
-                AiMatchedItem("商业数据分析师 (CDA LEVEL I)", "PREFERRED", 87, "掌握SQL多表复杂关联挖掘与指标体系搭建的大厂实操凭证。")
+                AiMatchedItem("人工智能工程技术人员 (人社部中级)", "PREFERRED", 92, "国家新型战略数字技术职称评定，大模型与深度学习核心技术胜任力。"),
+                AiMatchedItem("系统分析师 / 系统架构设计师 (软考高项)", "PREFERRED", 90, "国家高级工程师技术职称资格，核心业务系统技术负责人的顶尖认证。")
+            )
+            name.contains("无人机") || name.contains("低空") || name.contains("飞手") || name.contains("巡检") -> listOf(
+                AiMatchedItem("民用无人驾驶航空器操控员执照 (CAAC)", "MANDATORY", 99, "中国民用航空局法定飞行执照，低空经济与商业无人机作业合法持证红线。"),
+                AiMatchedItem("UTC无人机航拍与测绘技能认证", "PREFERRED", 92, "大疆行业应用专业技术认证，复杂三维正射与高精度建模实操资质。"),
+                AiMatchedItem("注册测绘师资格证", "PREFERRED", 88, "自然资源部法定测绘资质，重大低空地理信息成果编制必备签字权。")
+            )
+            name.contains("碳") || name.contains("能源") || name.contains("光伏") || name.contains("电池") -> listOf(
+                AiMatchedItem("碳排放管理员 (人社部中高级)", "MANDATORY", 95, "生态环境部与国家质监规定重点用能单位与碳交易核查法定资格。"),
+                AiMatchedItem("注册电气工程师 (发输电/供配电)", "PREFERRED", 96, "住建部与国家能源局特级电力设计与大型新能源电站总包必备核心资质。"),
+                AiMatchedItem("中级注册安全工程师 (金属冶炼/化工/建筑)", "PREFERRED", 91, "安全生产法硬性规定的绿色工厂与储能电站安全总监资质。")
+            )
+            name.contains("播") || name.contains("电商") || name.contains("营销") || name.contains("运营") -> listOf(
+                AiMatchedItem("全媒体运营师 (人社部职业技能等级)", "PREFERRED", 93, "人社部发布官方新职业，掌握内容矩阵分发、千川投流与私域用户留存。"),
+                AiMatchedItem("互联网营销师 (直播销售员)", "PREFERRED", 91, "人社部官方认证，各大主流带货平台规范开播与合规风控实操资质。"),
+                AiMatchedItem("电子商务师高级职业资格", "PREFERRED", 87, "国家电子商务企业评级与跨境出口退税运营补贴关键评定依据。")
             )
             else -> listOf(
                 AiMatchedItem("行业对口中高级职业技能等级证书", "PREFERRED", 90, "国家人社部认可职业等级，企业定岗定级与技能津贴发放重要参考。"),
-                AiMatchedItem("项目管理专业人士认证 (PMP)", "PREFERRED", 85, "国际通用项目管理体系，证明跨部门推进业务交付与资源协调硬实力。")
+                AiMatchedItem("项目管理专业人士认证 (PMP)", "PREFERRED", 88, "国际通用项目管理体系，证明跨部门推进业务交付与资源协调硬实力。"),
+                AiMatchedItem("注册信息安全员 (CISP) / 注册质量工程师", "PREFERRED", 85, "企业合规与流程质量标准化管理核心加分凭证。")
             )
         }
     }

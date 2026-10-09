@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "证书职业双向检索"
+rootProject.name = "证道职途"
 
 include(":app")

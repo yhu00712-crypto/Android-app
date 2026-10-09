@@ -1,16 +1,27 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.database.AppDatabase
 import com.example.data.database.StaticDataStore
 import com.example.data.model.*
+import com.example.data.skills.CampusToCareerSkill
+import com.example.data.skills.CareerPlannerSkill
 import com.example.ui.theme.AnimeSkinTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+
+// API 连通性测试状态
+sealed class ApiTestState {
+    object Idle : ApiTestState()
+    object Testing : ApiTestState()
+    data class Success(val message: String) : ApiTestState()
+    data class Error(val message: String) : ApiTestState()
+}
 
 // 聊天消息实体
 data class ChatMessage(
@@ -63,7 +74,8 @@ data class RecruitingJob(
     val mandatoryCerts: List<String>,
     val preferredCerts: List<String>,
     val description: String,
-    val recruiterId: String
+    val recruiterId: String,
+    val industry: String = "互联网/IT"
 )
 
 // 个人简历工作/项目经历实体
@@ -89,6 +101,101 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
             dao.insertCertificates(StaticDataStore.getCertificates())
             dao.insertOccupations(StaticDataStore.getOccupations())
             dao.insertRelations(StaticDataStore.getRelations())
+        }
+    }
+
+    // --- DeepSeek / AI 大模型 API 配置管理 ---
+    private val aiPrefs = application.getSharedPreferences("ai_settings_prefs", Context.MODE_PRIVATE)
+
+    val aiProvider = MutableStateFlow(aiPrefs.getString("ai_provider", "DEEPSEEK") ?: "DEEPSEEK")
+    val deepSeekApiKey = MutableStateFlow(aiPrefs.getString("deepseek_api_key", "") ?: "")
+    val deepSeekBaseUrl = MutableStateFlow(aiPrefs.getString("deepseek_base_url", "https://api.deepseek.com") ?: "https://api.deepseek.com")
+    val deepSeekModel = MutableStateFlow(aiPrefs.getString("deepseek_model", "deepseek-chat") ?: "deepseek-chat")
+
+    // 控制 API 设置界面调出 (默认 false，不遮挡主界面，需要时可在设置或聊天中主动调出)
+    val showApiConfigDialog = MutableStateFlow(false)
+    val apiTestState = MutableStateFlow<ApiTestState>(ApiTestState.Idle)
+
+    fun openApiConfigDialog() {
+        apiTestState.value = ApiTestState.Idle
+        showApiConfigDialog.value = true
+    }
+
+    fun closeApiConfigDialog() {
+        showApiConfigDialog.value = false
+    }
+
+    fun saveDeepSeekConfig(apiKey: String, baseUrl: String, model: String, provider: String = "DEEPSEEK") {
+        val cleanKey = apiKey.trim()
+        val cleanUrl = if (baseUrl.isBlank()) "https://api.deepseek.com" else baseUrl.trim().trimEnd('/')
+        val cleanModel = if (model.isBlank()) "deepseek-chat" else model.trim()
+
+        deepSeekApiKey.value = cleanKey
+        deepSeekBaseUrl.value = cleanUrl
+        deepSeekModel.value = cleanModel
+        aiProvider.value = provider
+
+        aiPrefs.edit()
+            .putString("deepseek_api_key", cleanKey)
+            .putString("deepseek_base_url", cleanUrl)
+            .putString("deepseek_model", cleanModel)
+            .putString("ai_provider", provider)
+            .apply()
+
+        showApiConfigDialog.value = false
+    }
+
+    fun testDeepSeekConnection(apiKey: String, baseUrl: String, model: String) {
+        val cleanKey = apiKey.trim()
+        val cleanUrl = if (baseUrl.isBlank()) "https://api.deepseek.com" else baseUrl.trim().trimEnd('/')
+        val cleanModel = if (model.isBlank()) "deepseek-chat" else model.trim()
+
+        if (cleanKey.isEmpty()) {
+            apiTestState.value = ApiTestState.Error("API Key 不能为空，请输入您的 DeepSeek 密钥")
+            return
+        }
+
+        apiTestState.value = ApiTestState.Testing
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val jsonPayload = """
+                {
+                    "model": "$cleanModel",
+                    "messages": [
+                        {"role": "user", "content": "请只回复两个字：OK"}
+                    ],
+                    "max_tokens": 10
+                }
+            """.trimIndent()
+
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = okhttp3.RequestBody.Companion.create(mediaType, jsonPayload)
+            val fullUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
+
+            val request = okhttp3.Request.Builder()
+                .url(fullUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .addHeader("Content-Type", "application/json")
+                .post(body)
+                .build()
+
+            try {
+                client.newCall(request).execute().use { response ->
+                    val bodyString = response.body?.string() ?: ""
+                    if (response.isSuccessful) {
+                        apiTestState.value = ApiTestState.Success("连接测试成功！DeepSeek API 验证通过 🚀")
+                    } else {
+                        apiTestState.value = ApiTestState.Error("HTTP ${response.code}: $bodyString")
+                    }
+                }
+            } catch (e: Exception) {
+                apiTestState.value = ApiTestState.Error("连接失败: ${e.message ?: "网络超时"}")
+            }
         }
     }
 
@@ -369,6 +476,29 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
     val aiOccupationMatches = MutableStateFlow<Map<String, List<com.example.data.network.AiMatchedItem>>>(emptyMap())
     val aiCertificateMatches = MutableStateFlow<Map<String, List<com.example.data.network.AiMatchedItem>>>(emptyMap())
 
+    // --- 搜索未匹配职业时的 AI 结构化匹配数据与状态 ---
+    val aiSearchResult = MutableStateFlow<com.example.data.network.AiSearchOutput?>(null)
+    val isAiSearchLoading = MutableStateFlow(false)
+
+    fun triggerAiSearchForNotFound(query: String, mode: Int, forceRefresh: Boolean = false) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return
+        if (!forceRefresh && aiSearchResult.value?.query == trimmed && aiSearchResult.value?.mode == mode) {
+            return
+        }
+        viewModelScope.launch {
+            isAiSearchLoading.value = true
+            try {
+                val result = com.example.data.network.GeminiMatchingService.matchUnknownOccupation(trimmed, mode)
+                aiSearchResult.value = result
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isAiSearchLoading.value = false
+            }
+        }
+    }
+
     fun triggerAiMatchForOccupation(occupation: Occupation, forceRefresh: Boolean = false) {
         viewModelScope.launch {
             if (!forceRefresh && aiOccupationMatches.value.containsKey(occupation.id)) return@launch
@@ -437,21 +567,38 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- 模拟对话与已读未读消息状态 ---
+    // --- 模拟对话与已读未读消息状态 (AI导师置顶) ---
     val recruiters = MutableStateFlow(
         listOf(
+            Recruiter("AGENT_RESUME_POLISH", "AI 简历润色专家 🔮", "搭伙圈 AI 实验室 (置顶导师)", 0xFFE07A5F, "OCC_SOFTWARE_DEV", "少侠！零经验？没实习？别慌，把你在校的杂事写给我，看我用 STAR 法则一键变废为宝！", "刚刚", true),
+            Recruiter("TUTOR_AI", "AI 生涯规划师 🧭", "国家智慧教育平台 (置顶导师)", 0xFFFF7096, "OCC_PM_AST", "你好！我是你的专属职业生涯规划师，你想探索哪个职业与考证方向？", "刚刚", true),
             Recruiter("HR_BYTEDANCE", "张敏 (HR主管)", "字节跳动合规组", 0xFF6C63FF, "OCC_LEGAL_ADV", "同学你好，你的法考A证确实是硬性前置加分项，何时能面试？", "10:30 AM", true),
             Recruiter("TECH_HUAWEI", "李国栋 (高级架构师)", "华为移动研发部", 0xFF00B4D8, "OCC_SOFTWARE_DEV", "看到你有软考中级证书，底层基础很扎实，我们聊聊？", "昨天", true),
             Recruiter("HR_GOLDMAN", "Catherine (招聘总监)", "高盛亚洲研究所", 0xFF9B5DE5, "OCC_SECURITIES_AST", "你好，证券研究助理岗位需要同时持有证券与基金从业证书。", "2天前", false),
-            Recruiter("TUTOR_AI", "AI 生涯规划师", "国家智慧教育平台", 0xFFFF7096, "OCC_PM_AST", "你好！我是你的专属职业生涯规划师，你想探索哪个方向？", "1分钟前", true),
-            Recruiter("AGENT_RESUME_POLISH", "AI 简历润色专家 🔮", "搭伙圈 AI 实验室", 0xFFE07A5F, "OCC_SOFTWARE_DEV", "少侠！零经验？没实习？别慌，把你在校的杂事写给我，看我用 STAR 法则一键变废为宝！", "刚刚", true)
+            Recruiter("HR_ALIBABA", "王承 (技术招聘专家)", "阿里达摩院", 0xFFFF9900, "OCC_SOFTWARE_DEV", "同学，你的大模型提示工程与数据工程背景很对口我们组！", "昨天", false),
+            Recruiter("HR_QIANXIN", "陈工 (攻防实验室负责人)", "奇安信安全科技", 0xFF2A9D8F, "OCC_SOFTWARE_DEV", "你好，看到你持有 CISP 注册信息安全资质，具备实战经验吗？", "3天前", false),
+            Recruiter("HR_ICBC", "周经理 (金融科技校招主管)", "中国工商银行总行", 0xFFC92A2A, "OCC_FINANCIAL_PLAN", "同学你好，工行总行科技金融管培生正在筛选首轮名单。", "5小时前", true),
+            Recruiter("HR_CITIC", "陆总 (投资银行部董事总经理)", "中信证券投行部", 0xFF1864AB, "OCC_SECURITIES_AST", "持有法考或CPA在投行底稿尽调中优势极大，简历已通过初筛！", "前天", false),
+            Recruiter("HR_MCKINSEY", "Sarah (大中华区校招总监)", "麦肯锡咨询", 0xFF1098AD, "OCC_FINANCIAL_PLAN", "Hi！我们很看重你的数据建模逻辑与跨学科领导力。", "4天前", false),
+            Recruiter("HR_XDF", "刘老师 (国际教学主管)", "新东方教育集团", 0xFF7048E8, "OCC_TEACHER_SEC", "同学你好，高级中学教资是硬门槛，你的试讲表现准备如何？", "昨天", false),
+            Recruiter("HR_MANGO", "柯导 (内容生态制作人)", "湖南广电芒果TV", 0xFFFF6B6B, "OCC_PM_AST", "新一季头部S级综艺急需网生脑洞策划，期待你的文创作品集！", "2天前", false),
+            Recruiter("HR_CSCEC", "赵总工 (海外重大工程总指挥)", "中国建筑第八工程局", 0xFF0CA678, "OCC_SOFTWARE_DEV", "我们一带一路海外标杆项目需要持二建以上青年工程师！", "昨天", false),
+            Recruiter("HR_BYD", "孙工 (动力电控研发组长)", "比亚迪汽车工程院", 0xFF3B5BDB, "OCC_SOFTWARE_DEV", "新一代刀片电驱动平台需要硬核电气背景，何时方便技术二面？", "3小时前", true),
+            Recruiter("HR_SINOPHARM", "郑主管 (临床研究合规负责人)", "国药集团致君制药", 0xFF20C997, "OCC_LEGAL_ADV", "临床试验GCP规范监查需要执业药师资质，你的背景非常契合！", "昨天", false),
+            Recruiter("HR_TAIKANG", "韩总监 (心身关怀业务总监)", "泰康大健康生活中心", 0xFFF08C00, "OCC_PM_AST", "你好，高端养老社区心身辅导岗位很看重专业心理咨询资质。", "4天前", false),
+            Recruiter("HR_DJI", "肖队长 (低空应用交付组长)", "大疆创新行业部", 0xFF495057, "OCC_SOFTWARE_DEV", "持 CAAC 执照进行三维正射与激光点云建模是我们的标准动作！", "昨天", false),
+            Recruiter("HR_CYTS", "杜部长 (国际研学中心首席导师)", "中青旅国际研学", 0xFF008080, "OCC_TEACHER_SEC", "涉外高定路线需要扎实的导游与外语双证，诚邀加入！", "3天前", false),
+            Recruiter("HR_SPIC", "林研究员 (绿能与双碳投资部)", "国家电投绿能投资", 0xFF2B8A3E, "OCC_FINANCIAL_PLAN", "ESG披露评级与碳资产盘查是未来风口，欢迎来所里详聊！", "昨天", false)
         )
     )
 
     val activeRecruiter = MutableStateFlow<Recruiter?>(null)
 
+    val selectedJobIndustry = MutableStateFlow("全部")
+
     val recruitingJobs = MutableStateFlow(
         listOf(
+            // 1. 互联网/IT科技行业
             RecruitingJob(
                 id = "JOB_BYTEDANCE",
                 title = "法务合规专员 (出海方向)",
@@ -462,7 +609,8 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 mandatoryCerts = listOf("国家法律职业资格 (法考A证)"),
                 preferredCerts = listOf("大学英语六级 (CET6)", "涉外合规师"),
                 description = "负责出海及多国地区合规保障，起草涉外隐私与数据安全法律文书，与跨国监管高效协同对接。",
-                recruiterId = "HR_BYTEDANCE"
+                recruiterId = "HR_BYTEDANCE",
+                industry = "互联网/IT"
             ),
             RecruitingJob(
                 id = "JOB_HUAWEI",
@@ -471,22 +619,11 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 salary = "18k-30k",
                 location = "深圳",
                 avatarColor = 0xFF00B4D8,
-                mandatoryCerts = listOf("计算机软件资格考试 (软考中级)"),
+                mandatoryCerts = listOf("软件设计师 (软考中级)"),
                 preferredCerts = listOf("大学英语六级 (CET6)", "高频算法设计师"),
                 description = "负责HarmonyOS/Android系统框架核心模块及跨终端互联SDK开发，参与极客级并发优化及Compose自研组件编写。",
-                recruiterId = "TECH_HUAWEI"
-            ),
-            RecruitingJob(
-                id = "JOB_GOLDMAN",
-                title = "证券研究助理 (分析师方向)",
-                company = "高盛亚洲研究所",
-                salary = "20k-35k",
-                location = "上海",
-                avatarColor = 0xFF9B5DE5,
-                mandatoryCerts = listOf("证券从业资格", "基金从业资格"),
-                preferredCerts = listOf("注册会计师 (CPA)", "特许金融分析师 (CFA)"),
-                description = "协助首席行业分析师，收集、整理宏观数据及行业报表，进行行业深度调研及分析，起草中英文投资建议报告。",
-                recruiterId = "HR_GOLDMAN"
+                recruiterId = "TECH_HUAWEI",
+                industry = "互联网/IT"
             ),
             RecruitingJob(
                 id = "JOB_TENCENT",
@@ -495,11 +632,81 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 salary = "12k-20k",
                 location = "深圳",
                 avatarColor = 0xFFFF7096,
-                mandatoryCerts = listOf("暂无硬性前置限制"),
-                preferredCerts = listOf("大学英语六级 (CET6)", "计算机软件资格考试 (软考中级)"),
+                mandatoryCerts = listOf("项目管理专业人士 (PMP)"),
+                preferredCerts = listOf("大学英语六级 (CET6)", "软件设计师 (软考中级)"),
                 description = "主导移动端创新产品原型交互，进行高保真PRD编写及全生命周期研发敏捷管理，擅长MBTI性格创意直觉。",
-                recruiterId = "TUTOR_AI"
+                recruiterId = "TUTOR_AI",
+                industry = "互联网/IT"
             ),
+            RecruitingJob(
+                id = "JOB_ALIBABA",
+                title = "大模型数据工程与评测专家",
+                company = "阿里巴巴达摩院",
+                salary = "22k-38k",
+                location = "杭州",
+                avatarColor = 0xFFFF9900,
+                mandatoryCerts = listOf("软件设计师 (软考中级)"),
+                preferredCerts = listOf("CDA 数据分析师 (Level 1)", "大学英语六级 (CET6)"),
+                description = "负责通义多模态大模型评测基准构建、高质量行业语料微调与对齐评估，主导多任务自动化 Benchmark 流水线开发。",
+                recruiterId = "HR_ALIBABA",
+                industry = "互联网/IT"
+            ),
+            RecruitingJob(
+                id = "JOB_QIANXIN",
+                title = "网络安全渗透测试工程师",
+                company = "奇安信安全科技",
+                salary = "14k-24k",
+                location = "北京",
+                avatarColor = 0xFF2A9D8F,
+                mandatoryCerts = listOf("注册信息安全专业人员 (CISP)"),
+                preferredCerts = listOf("程序员 (软考初级)", "大学英语四级 (CET-4)"),
+                description = "负责攻防对抗红蓝实战演练、企业内网脆弱性评估及APT攻击溯源分析，保障关基系统重保业务安全稳定运行。",
+                recruiterId = "HR_QIANXIN",
+                industry = "互联网/IT"
+            ),
+
+            // 2. 金融银行与投资证券
+            RecruitingJob(
+                id = "JOB_GOLDMAN",
+                title = "证券研究助理 (分析师方向)",
+                company = "高盛亚洲研究所",
+                salary = "20k-35k",
+                location = "上海",
+                avatarColor = 0xFF9B5DE5,
+                mandatoryCerts = listOf("证券从业资格证", "基金从业资格证"),
+                preferredCerts = listOf("注册会计师 (CPA)", "大学英语六级 (CET-6)"),
+                description = "协助首席行业分析师，收集、整理宏观数据及行业报表，进行行业深度调研及分析，起草中英文投资建议报告。",
+                recruiterId = "HR_GOLDMAN",
+                industry = "金融/证券"
+            ),
+            RecruitingJob(
+                id = "JOB_ICBC",
+                title = "总行科技金融管培生",
+                company = "中国工商银行总行",
+                salary = "13k-20k",
+                location = "北京",
+                avatarColor = 0xFFC92A2A,
+                mandatoryCerts = listOf("银行业专业人员职业资格证"),
+                preferredCerts = listOf("基金从业资格证", "CDA 数据分析师 (Level 1)"),
+                description = "负责总行科创型小微企业专项信贷产品风控建模、绿色供应链金融资产尽调，参与新一代智慧银行金融科技场景落地。",
+                recruiterId = "HR_ICBC",
+                industry = "金融/证券"
+            ),
+            RecruitingJob(
+                id = "JOB_CITIC",
+                title = "投行分析师助理 (IBD)",
+                company = "中信证券投资银行部",
+                salary = "18k-28k",
+                location = "深圳",
+                avatarColor = 0xFF1864AB,
+                mandatoryCerts = listOf("证券从业资格证"),
+                preferredCerts = listOf("注册会计师 (CPA)", "法律职业资格证书 (A证)"),
+                description = "参与A股IPO、主板并购重组及企业债发行承销工作，负责行业与对标公司尽职调查、招股说明书工作底稿编制。",
+                recruiterId = "HR_CITIC",
+                industry = "金融/证券"
+            ),
+
+            // 3. 财会审计与战略咨询
             RecruitingJob(
                 id = "JOB_PWC",
                 title = "初级审计顾问",
@@ -507,13 +714,186 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 salary = "10k-16k",
                 location = "广州",
                 avatarColor = 0xFFE07A5F,
-                mandatoryCerts = listOf("基金从业资格"),
-                preferredCerts = listOf("注册会计师 (CPA)", "大学英语六级 (CET6)"),
-                description = "执行大型集团企业财务报表审计及内部控制合规评估，分析重大财务勾稽关系，输出审计工作底稿。",
-                recruiterId = "HR_GOLDMAN"
+                mandatoryCerts = listOf("基金从业资格证"),
+                preferredCerts = listOf("注册会计师 (CPA)", "大学英语六级 (CET-6)"),
+                description = "执行大型集团企业财务报表审计及内部控制合规评估，分析重大财务勾稽关系，输出严密审计工作底稿。",
+                recruiterId = "HR_GOLDMAN",
+                industry = "财会/咨询"
+            ),
+            RecruitingJob(
+                id = "JOB_MCKINSEY",
+                title = "商业战略分析师 (全职)",
+                company = "麦肯锡咨询 (McKinsey)",
+                salary = "25k-42k",
+                location = "上海",
+                avatarColor = 0xFF1098AD,
+                mandatoryCerts = listOf("项目管理专业人士 (PMP)"),
+                preferredCerts = listOf("CDA 数据分析师 (Level 1)", "英语专业八级 (TEM-8)"),
+                description = "服务全球500强及大型国央企高层战略转型，进行定性市场访谈与定量财务回归建模，输出顶级商业战略洞见。",
+                recruiterId = "HR_MCKINSEY",
+                industry = "财会/咨询"
+            ),
+
+            // 4. 教育培训与文化传媒
+            RecruitingJob(
+                id = "JOB_XDF",
+                title = "双语国际学科教学导师",
+                company = "新东方教育科技集团",
+                salary = "12k-18k",
+                location = "武汉",
+                avatarColor = 0xFF7048E8,
+                mandatoryCerts = listOf("高级中学教师资格证", "普通话水平测试 (二级甲等)"),
+                preferredCerts = listOf("大学英语六级 (CET-6)", "英语专业八级 (TEM-8)"),
+                description = "负责国际IB/AP/A-Level课程体系双语授课，制定学员个性化学术提分方案，进行课堂互动与深度答疑。",
+                recruiterId = "HR_XDF",
+                industry = "教育/文传"
+            ),
+            RecruitingJob(
+                id = "JOB_MANGO",
+                title = "影视编导与IP文创衍生策划",
+                company = "湖南广电芒果TV文创中心",
+                salary = "11k-18k",
+                location = "长沙",
+                avatarColor = 0xFFFF6B6B,
+                mandatoryCerts = listOf("普通话水平测试 (一级乙等)"),
+                preferredCerts = listOf("数字资产IP文创衍生品策划师", "大学英语四级 (CET-4)"),
+                description = "负责头部S级综艺节目前期脚本统筹、短视频宣发矩阵创意剪辑与衍生潮玩文创周边方案孵化。",
+                recruiterId = "HR_MANGO",
+                industry = "教育/文传"
+            ),
+
+            // 5. 高端制造与建筑工程
+            RecruitingJob(
+                id = "JOB_CSCEC",
+                title = "海外工程建造管理工程师",
+                company = "中国建筑第八工程局",
+                salary = "15k-25k",
+                location = "南京",
+                avatarColor = 0xFF0CA678,
+                mandatoryCerts = listOf("二级建造师 (二建)"),
+                preferredCerts = listOf("一级建造师 (一建)", "大学英语六级 (CET-6)"),
+                description = "参与大型枢纽机场及超高层地标总承包施工管理，主导现场BIM协同建模、质量安全验收与多工种劳务协调调度。",
+                recruiterId = "HR_CSCEC",
+                industry = "制造/工程"
+            ),
+            RecruitingJob(
+                id = "JOB_BYD",
+                title = "智能电动车动力电控工程师",
+                company = "比亚迪汽车工程研究院",
+                salary = "16k-28k",
+                location = "深圳",
+                avatarColor = 0xFF3B5BDB,
+                mandatoryCerts = listOf("注册电气工程师"),
+                preferredCerts = listOf("软件设计师 (软考中级)", "大学英语六级 (CET-6)"),
+                description = "负责新能源乘用车高压电控驱动系统软件开发与CAN总线协议栈测试，参与极寒高温整车标定实验。",
+                recruiterId = "HR_BYD",
+                industry = "制造/工程"
+            ),
+
+            // 6. 生物医药与医疗健康
+            RecruitingJob(
+                id = "JOB_SINOPHARM",
+                title = "临床试验监查员 (CRA) / 质控专员",
+                company = "国药集团致君制药",
+                salary = "13k-22k",
+                location = "成都",
+                avatarColor = 0xFF20C997,
+                mandatoryCerts = listOf("执业药师 (药学/中药学)"),
+                preferredCerts = listOf("大学英语六级 (CET-6)", "注册安全评价师"),
+                description = "协同三甲医院开展抗肿瘤创新药II/III期临床试验监查，监督GCP规范执行，核实CRF原始数据与药物不良反应记录。",
+                recruiterId = "HR_SINOPHARM",
+                industry = "医药/健康"
+            ),
+            RecruitingJob(
+                id = "JOB_TAIKANG",
+                title = "心身健康顾问与心理干预督导",
+                company = "泰康大健康生活中心",
+                salary = "10k-17k",
+                location = "杭州",
+                avatarColor = 0xFFF08C00,
+                mandatoryCerts = listOf("心理咨询专业技能证书"),
+                preferredCerts = listOf("普通话水平测试 (二级甲等)", "企业人力资源管理师 (四级)"),
+                description = "负责高端养老社区居民与高净值客群的心理健康体检评估、认知症早筛干预与家庭情感抚慰支持体系搭建。",
+                recruiterId = "HR_TAIKANG",
+                industry = "医药/健康"
+            ),
+
+            // 7. 现代文旅与低空新兴
+            RecruitingJob(
+                id = "JOB_DJI",
+                title = "无人机遥感航测与巡检工程师",
+                company = "大疆创新行业应用部",
+                salary = "14k-23k",
+                location = "深圳",
+                avatarColor = 0xFF495057,
+                mandatoryCerts = listOf("民用无人机操控员执照 (CAAC)"),
+                preferredCerts = listOf("注册安全评价师", "大学英语四级 (CET-4)"),
+                description = "负责电力巡线、应急测绘及林业巡防等工业级无人机航线规划、LiDAR激光点云数据处理与三维正射影像建模。",
+                recruiterId = "HR_DJI",
+                industry = "文旅/新兴"
+            ),
+            RecruitingJob(
+                id = "JOB_CYTS",
+                title = "涉外高端定制研学领队",
+                company = "中青旅国际研学事业部",
+                salary = "9k-15k",
+                location = "北京",
+                avatarColor = 0xFF008080,
+                mandatoryCerts = listOf("全国导游资格证书", "普通话水平测试 (二级甲等)"),
+                preferredCerts = listOf("全国翻译专业资格证书 (三级口译/笔译)", "大学英语六级 (CET-6)"),
+                description = "负责国内外名校研学营与联合国青少年峰会路线带团策划，进行双语文化场馆专业讲解与安全突发应急演练把控。",
+                recruiterId = "HR_CYTS",
+                industry = "文旅/新兴"
+            ),
+
+            // 8. 绿色双碳与新能源
+            RecruitingJob(
+                id = "JOB_SPIC",
+                title = "碳资产管理与ESG评级分析师",
+                company = "国家电投绿色能源投资部",
+                salary = "15k-26k",
+                location = "上海",
+                avatarColor = 0xFF2B8A3E,
+                mandatoryCerts = listOf("碳中和绿色ESG高级评估员"),
+                preferredCerts = listOf("初级会计职称", "大学英语六级 (CET-6)"),
+                description = "负责企业范围一二三温室气体排放盘查与碳配额交易履约核算，撰写符合国际ISSB标准的ESG可持续发展年报。",
+                recruiterId = "HR_SPIC",
+                industry = "绿色/能源"
             )
         )
     )
+
+    val jobSearchQuery = MutableStateFlow("")
+    val selectedJobCity = MutableStateFlow("全国")
+
+    fun resetJobFilters() {
+        jobSearchQuery.value = ""
+        selectedJobCity.value = "全国"
+        selectedJobIndustry.value = "全部"
+    }
+
+    val filteredRecruitingJobs: StateFlow<List<RecruitingJob>> = combine(
+        recruitingJobs,
+        selectedJobIndustry,
+        selectedJobCity,
+        jobSearchQuery
+    ) { jobs, industry, city, query ->
+        jobs.filter { job ->
+            val matchIndustry = (industry == "全部" || job.industry == industry)
+            val matchCity = (city == "全国" || job.location.contains(city) || city.contains(job.location))
+            val matchQuery = if (query.isBlank()) true else {
+                val q = query.trim()
+                job.title.contains(q, ignoreCase = true) ||
+                job.company.contains(q, ignoreCase = true) ||
+                job.location.contains(q, ignoreCase = true) ||
+                job.description.contains(q, ignoreCase = true) ||
+                job.mandatoryCerts.any { it.contains(q, ignoreCase = true) } ||
+                job.preferredCerts.any { it.contains(q, ignoreCase = true) } ||
+                job.industry.contains(q, ignoreCase = true)
+            }
+            matchIndustry && matchCity && matchQuery
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // 针对每个 recruiter 的消息列表
     private val _chatMessagesMap = MutableStateFlow<Map<String, List<ChatMessage>>>(
@@ -537,6 +917,48 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
             ),
             "AGENT_RESUME_POLISH" to listOf(
                 ChatMessage("RESUME_1", "RECRUITER", "少侠你好！我是你的专属 AI 简历润色教练 🔮。\n\n很多同学觉得自己大一到大三除了当咸鱼，就是做社团跑腿搬砖、画海报排版，或者期末写写小计算器、小大作业。其实这些经历稍加重构就是闪闪发光的 BD/增长运营/研发经历！\n\n你可以直接把你的在校杂事大白话发给我（例如：我在社团拉了 500 块赞助、期末写了一个二手商品查询的代码、帮班里排版了期末路演 PPT），看我用大厂最爱的 STAR 法则帮它们强力润色，秒变高大上职场黑话！快发来试试吧！", "刚刚", false)
+            ),
+            "HR_ALIBABA" to listOf(
+                ChatMessage("ALI_1", "RECRUITER", "你好同学！我是阿里达摩院技术招聘专家王承。看到你关注了大模型数据工程岗位，目前组内正进行百亿级语料对齐基准开发，有软考或数据分析背景优先安排二面！", "昨天", false)
+            ),
+            "HR_QIANXIN" to listOf(
+                ChatMessage("QX_1", "RECRUITER", "你好，我是奇安信安全科技攻防实验室负责人陈工。CISP 或网络工程师认证是国家攻防蓝队和渗透测试的强背书，欢迎来聊聊实战演练经验！", "3天前", false)
+            ),
+            "HR_ICBC" to listOf(
+                ChatMessage("ICBC_1", "RECRUITER", "同学你好，这里是中国工商银行总行金融科技招聘组。今年重点招收具备银行业专业资质与数字化建模能力的新星，简历已入池，期待你的加入！", "5小时前", true)
+            ),
+            "HR_CITIC" to listOf(
+                ChatMessage("CITIC_1", "RECRUITER", "你好，我是中信证券投行部陆总。投行底稿尽调与申报材料制作对复合型背景非常青睐，法考A证或CPA能让你在入职第一天脱颖而出！", "前天", false)
+            ),
+            "HR_MCKINSEY" to listOf(
+                ChatMessage("MCK_1", "RECRUITER", "Hi! Sarah here from McKinsey campus recruiting. 我们的商业战略咨询注重严密的问题拆解结构与定量逻辑，期待与你的交流！", "4天前", false)
+            ),
+            "HR_XDF" to listOf(
+                ChatMessage("XDF_1", "RECRUITER", "同学你好！我是新东方国际教育教学主管刘老师。双语国际课程授课要求过硬的高级中学教资与英语水平，我们非常期待你的试讲展现！", "昨天", false)
+            ),
+            "HR_MANGO" to listOf(
+                ChatMessage("MGO_1", "RECRUITER", "哈喽同学！我是芒果TV内容制作柯导。我们目前正为新一季S级青年创新节目物色网生新锐，如果你有数字文创或导演策划经验，请速投作品集！", "2天前", false)
+            ),
+            "HR_CSCEC" to listOf(
+                ChatMessage("CSCEC_1", "RECRUITER", "你好，中建八局海外事业部赵总工。我们承接了多个海外机场高铁地标，持有二级建造师及以上的小伙子能快速担任标段执行负责人，欢迎详谈！", "昨天", false)
+            ),
+            "HR_BYD" to listOf(
+                ChatMessage("BYD_1", "RECRUITER", "同学你好，比亚迪汽车工程研究院孙工。新一代刀片电驱动系统正在大规模招募电气系统人才，有注册电气资质或扎实单片机软考底子优先，聊聊？", "3小时前", true)
+            ),
+            "HR_SINOPHARM" to listOf(
+                ChatMessage("SINO_1", "RECRUITER", "你好！国药集团致君制药临床监查合规组郑主管。创新药进入多中心临床试验离不开严谨的GCP质控与执业药师专业复核，期待你的简历！", "昨天", false)
+            ),
+            "HR_TAIKANG" to listOf(
+                ChatMessage("TK_1", "RECRUITER", "同学你好，泰康大健康心身关怀业务韩总监。高端医养结合社区急需兼具温度与专业执业技能的心理咨询人才，你的专业资质令人眼前一亮！", "4天前", false)
+            ),
+            "HR_DJI" to listOf(
+                ChatMessage("DJI_1", "RECRUITER", "你好！大疆创新行业应用部肖队长。低空经济正处于高速爆发期，具备 CAAC 执照与航测建模能力的工程师是真正的稀缺人才，期待并肩作战！", "昨天", false)
+            ),
+            "HR_CYTS" to listOf(
+                ChatMessage("CYTS_1", "RECRUITER", "你好，中青旅国际研学事业部杜部长。我们的联合国峰会与名校营项目需要具备导游双证与外语能力的卓越带队导师，欢迎加入！", "3天前", false)
+            ),
+            "HR_SPIC" to listOf(
+                ChatMessage("SPIC_1", "RECRUITER", "同学你好！国家电投绿色双碳投资部林研究员。国内外企业ESG评级与碳市场履约正迎来万亿蓝海，有绿能ESG证书是极佳的敲门砖！", "昨天", false)
             )
         )
     )
@@ -878,6 +1300,9 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         _selectedCertificateId.value = null
         _relatedCertificates.value = emptyList()
         _relatedOccupations.value = emptyList()
+        if (searchQuery.value.trim().isEmpty()) {
+            aiSearchResult.value = null
+        }
     }
 
     /**
@@ -919,6 +1344,31 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         activeRecruiter.value = null
     }
 
+    private fun getMatchedJobsJsonForPlanning(): String {
+        return try {
+            val selectedOcc = selectedTreeOccupation.value
+            val occs = if (selectedOcc != null) listOf(selectedOcc) else StaticDataStore.getOccupations().take(2)
+            val arr = org.json.JSONArray()
+            for (occ in occs) {
+                val obj = org.json.JSONObject()
+                obj.put("occupation_title", occ.name)
+                obj.put("category", occ.category)
+                obj.put("salary_range", occ.salaryExpectation)
+                obj.put("description", occ.description)
+                val certsArr = org.json.JSONArray()
+                treeRequiredCerts.value.forEach { c ->
+                    val isMandatory = c.requirementType.equals("MANDATORY", ignoreCase = true)
+                    certsArr.put("${c.certificate.name}(${if (isMandatory) "法定红线准入" else "加分优选"})")
+                }
+                obj.put("required_or_preferred_certs", certsArr)
+                arr.put(obj)
+            }
+            arr.toString()
+        } catch (e: Exception) {
+            "[]"
+        }
+    }
+
     // 发送新消息并触发模拟回复
     fun sendMessage(text: String) {
         val recruiter = activeRecruiter.value ?: return
@@ -950,11 +1400,18 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val replyText = if (recruiter.id == "TUTOR_AI" || recruiter.id == "AGENT_RESUME_POLISH") {
                 val systemInstruction = if (recruiter.id == "TUTOR_AI") {
-                    "你是一位高校大学生生涯规划师，精通各行业证书体系 and 考证路径。用亲切、客观、充满正能量的语气，解答大学生关于选专业、考证加分、考公务员、进入互联网大厂或外企的求职疑惑。回答要结合专业证书的重要门槛性，字数控制在200字以内，排版多用Emoji、空行和序号。"
+                    val certsList = resumeCertifications.value.joinToString(", ")
+                    CareerPlannerSkill.buildSystemPrompt(
+                        userMajor = userMajor.value,
+                        userEducation = "${userGrade.value}（本科在读 · ${userSchool.value}）",
+                        userCerts = if (certsList.isBlank()) "暂无专业准入证书（待规划）" else certsList,
+                        userGoal = if (text.isBlank()) resumeTargetJob.value else text,
+                        matchedJobsJson = getMatchedJobsJsonForPlanning()
+                    )
                 } else {
-                    "你是一位资深的高校大厂求职指导教练和简历润色Agent。任务是帮助零实习、零经验的大学生，将在校普通的杂事经历（如拉赞助、做志愿者、期末大作业、打字整理、社团搬砖、画画排版、做PPT等），翻译优化为适应职场的、含金量极高且符合大厂高频需求的STAR法则格式经历。你的回答格式必须是：首先用风趣幽默的语言鼓励少侠，然后给出【优化前】和【AI 深度重构后（STAR法则）】的强烈对比，最后给出一小条【求职加分建议】。总长度控制在300字以内，多空行排版。"
+                    CampusToCareerSkill.SYSTEM_PROMPT
                 }
-                callGeminiApi(systemInstruction, text)
+                callDeepSeekApi(systemInstruction, text)
             } else {
                 kotlinx.coroutines.delay(1200)
                 generateRecruiterReply(recruiter.id, text)
@@ -989,6 +1446,92 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun callDeepSeekApi(systemInstruction: String, prompt: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val apiKey = deepSeekApiKey.value.trim()
+        val baseUrl = deepSeekBaseUrl.value.trim().trimEnd('/')
+        val model = deepSeekModel.value.trim()
+
+        if (apiKey.isEmpty()) {
+            return@withContext "⚠️ 【DeepSeek 未配置 API Key】\n\n您尚未配置自己的 DeepSeek API 密钥，请点击界面右上角【⚙️ API 设置】输入您的 Key 即可实时对话！\n\n为你提供本地专家参考回复：\n\n" + getLocalFallbackReply(systemInstruction, prompt)
+        }
+
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val escapedPrompt = escapeJson(prompt)
+        val escapedSystem = escapeJson(systemInstruction)
+
+        val jsonPayload = """
+            {
+                "model": "$model",
+                "messages": [
+                    {"role": "system", "content": "$escapedSystem"},
+                    {"role": "user", "content": "$escapedPrompt"}
+                ],
+                "temperature": 0.7,
+                "stream": false
+            }
+        """.trimIndent()
+
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = okhttp3.RequestBody.Companion.create(mediaType, jsonPayload)
+        val fullUrl = if (baseUrl.endsWith("/chat/completions")) baseUrl else "$baseUrl/chat/completions"
+
+        val request = okhttp3.Request.Builder()
+            .url(fullUrl)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Content-Type", "application/json")
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                val bodyString = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    return@withContext "⚠️ 【DeepSeek API 请求失败 ${response.code}】\n\n$bodyString\n\n请检查 API Key 余额或代理地址。为您调取本地专家兜底：\n\n" +
+                        getLocalFallbackReply(systemInstruction, prompt)
+                }
+                val content = parseOpenAiChatResponse(bodyString)
+                if (content.isNullOrBlank()) {
+                    "⚠️ 【DeepSeek 解析失败】无法提取内容。为您切换本地智能备选：\n\n" +
+                        getLocalFallbackReply(systemInstruction, prompt)
+                } else {
+                    content
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "⚠️ 【DeepSeek 连接异常】${e.message}\n请检查网络连接或 API Base URL。为您调取本地专家回复：\n\n" +
+                getLocalFallbackReply(systemInstruction, prompt)
+        }
+    }
+
+    private fun parseOpenAiChatResponse(jsonString: String): String? {
+        try {
+            val root = org.json.JSONObject(jsonString)
+            val choices = root.optJSONArray("choices") ?: return null
+            if (choices.length() == 0) return null
+            val firstChoice = choices.getJSONObject(0)
+            val message = firstChoice.optJSONObject("message") ?: return null
+            val reasoning = message.optString("reasoning_content", "")
+            val content = message.optString("content", "")
+            return if (reasoning.isNotBlank() && content.isNotBlank()) {
+                "🧠 【DeepSeek-R1 深度思考】\n$reasoning\n\n━━━━━━━━━━━━━━\n\n$content"
+            } else if (content.isNotBlank()) {
+                content
+            } else if (reasoning.isNotBlank()) {
+                reasoning
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
         }
     }
 
@@ -1096,47 +1639,91 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun getLocalFallbackReply(systemInstruction: String, prompt: String): String {
-        if (systemInstruction.contains("简历润色")) {
+        if (systemInstruction.contains("在校经历转职场语言专家") || systemInstruction.contains("简历润色")) {
             return when {
-                prompt.contains("赞助") || prompt.contains("外联") || prompt.contains("钱") -> {
-                    "少侠！拉赞助可不只是跑腿，这可是妥妥的 BD (商业拓展) 战绩！🔮\n\n" +
-                    "【优化前】\n在学生会外联部去校外找商家拉了500块钱赞助印传单。\n\n" +
-                    "【AI 深度重构后（STAR法则）】\n★【商业拓展与项目交付（校园合作方向）】\n" +
-                    "• S/T (背景): 针对校级千人科创峰会，负责外部赞助商合作谈判，填补 500 元宣传资金缺口。\n" +
-                    "• A (行动): 独立梳理校方周边 20 家商家画像并进行需求对齐，制定定制化校园品牌路演方案；逐一拜访商户决策人展现曝光价值。\n" +
-                    "• R (结果): 最终成功达成 1 家核心商户的独家赞助，赞助金 100% 交付，品牌覆盖全校 2000+ 学子。\n\n" +
-                    "【💡 求职加分建议】\n不要提“发传单、要钱”，大厂更喜欢听“高频转化、商家路演、多维合作谈判”这样的商业词汇。多把这段话写进你的简历里，绝对加分！🚀"
+                prompt.contains("赞助") || prompt.contains("外联") || prompt.contains("跑腿") || prompt.contains("商家") -> {
+                    "### 🎯 职场能力转化亮点\n" +
+                    "- **核心能力提取**：商务谈判能力、对外沟通、跨圈层资源整合能力\n" +
+                    "- **价值分析**：拉赞助不是简单要钱或跑腿，而是向商户决策人展现商业曝光价值并促成签约，是业务闭环中的核心 BD (商业拓展) 动作。\n\n" +
+                    "### ✍️ 优化后话术推荐\n" +
+                    "> **原表达**：${prompt}\n" +
+                    "> **职场化表达**：主导校级千人科创峰会外部赞助拓展，梳理周边 20 家目标商户画像并交付定制化路演方案；独立完成商务谈判，成功达成核心商户独家赞助，赞助款项 100% 履约交付，实现校园品牌曝光触达 2000+ 人次。\n\n" +
+                    "### 💡 建议在面试中补充的细节\n" +
+                    "- 补充被商户拒绝后的异议处理方式，以及你如何通过量化人流数据打消赞助商疑虑。"
                 }
-                prompt.contains("传单") || prompt.contains("印") || prompt.contains("发") || prompt.contains("排版") -> {
-                    "少侠！发传单、排版物料绝非打杂，这是经典的 AARRR 增长运营与物料视觉策划！🔮\n\n" +
-                    "【优化前】\n在社团帮忙排版并印刷、分发了招新传单。\n\n" +
-                    "【AI 深度重构后（STAR法则）】\n★【校园用户增长与视觉物料策划（运营岗方向）】\n" +
-                    "• S/T (背景): 为突破科创社团季度招新人数，负责招新视觉物料排版与线下分发，面临转化率提升痛点。\n" +
-                    "• A (行动): 优化传单排版视觉体系，提炼核心入群痛点福利；选择在上下课人流量最大的食堂及校门口进行网格化定向分发。\n" +
-                    "• R (结果): 传单的扫码入群率达到 12%，一天内为社团引流 150+ 垂直科创兴趣人群，超额完成招新 KPI。\n\n" +
-                    "【💡 求职加分建议】\n不要在简历中流露廉价劳动力色彩，要讲“增长路径”、“扫码转化率”、“网格化运营”，高级感立刻扑面而来！✨"
+                prompt.contains("PPT") || prompt.contains("做ppt") || prompt.contains("ppt") || prompt.contains("策划") || prompt.contains("文案") -> {
+                    "### 🎯 职场能力转化亮点\n" +
+                    "- **核心能力提取**：高管级信息提炼能力、复杂逻辑可视化表达、项目交付把控\n" +
+                    "- **价值分析**：做 PPT 与写策划绝不是打字排版，而是将多维度散碎资料抽象为具有决策指导意义的商业/竞赛纲领，直接决定评委对项目含金量的首要印象。\n\n" +
+                    "### ✍️ 优化后话术推荐\n" +
+                    "> **原表达**：${prompt}\n" +
+                    "> **职场化表达**：作为核心骨干主导国家级竞赛商业路演方案构建，基于商业画布模型抽象 50+ 页复杂行业调研，重构为 20 页高逻辑性汇报 PPT；实现关键数据可视化图表化呈现，支撑团队在终审答辩中夺得高分评级。\n\n" +
+                    "### 💡 建议在面试中补充的细节\n" +
+                    "- 面试中可重点强调你如何设计 PPT 演讲故事线（Storyline），以及如何用数据支撑团队的核心论点。"
                 }
-                prompt.contains("作业") || prompt.contains("代码") || prompt.contains("写") || prompt.contains("高数") || prompt.contains("计算器") || prompt.contains("程序") -> {
-                    "少侠！课设和作业可是大学生没有实习时，写进简历的唯一“研发经历”！千万要写好！🔮\n\n" +
-                    "【优化前】\n期末写过一个计算器/学生大作业代码，拿了90分。\n\n" +
-                    "【AI 深度重构后（STAR法则）】\n★【基于数据字典的并发数值计算器（独立项目）】\n" +
-                    "• S/T (背景): 针对期末课程设计中，高并发下基础数学解析系统出现的栈溢出及性能耗损，主导优化重构。\n" +
-                    "• A (行动): 采用 Python 构建底层数据架构，优化了原本冗余的循环逻辑，算法复杂度由 O(N²) 缩减为 O(N)。\n" +
-                    "• R (结果): 最终实现系统在极限运算场景下的数据吞吐耗时缩短 35%，项目获评 90+ 优秀（Top 5%），并作为样板进行班级演示。\n\n" +
-                    "【💡 求职加分建议】\n不要写“做作业”，要写“独立研发项目”；把计算器写成“数值计算系统”，写出你的内存/时间复杂度优化，HR 看完直接安排面试！🔥"
+                prompt.contains("组织") || prompt.contains("活动") || prompt.contains("签到") || prompt.contains("社团") -> {
+                    "### 🎯 职场能力转化亮点\n" +
+                    "- **核心能力提取**：项目统筹（PMO）、跨部门敏捷协作、突发风险应急控制\n" +
+                    "- **价值分析**：组织校园活动就是一次完整的小型敏捷项目管理，涵盖人力排班、场地物料、突发预案与全周期落地把控。\n\n" +
+                    "### ✍️ 优化后话术推荐\n" +
+                    "> **原表达**：${prompt}\n" +
+                    "> **职场化表达**：统筹规划 300+ 人规模高校科技创客沙龙全流程运营，制定甘特图倒排工期与 5 类突发预警方案；协调现场 15 人志愿者工作流，实现嘉宾零延误、活动准点率 100%，获评院系年度标杆项目。\n\n" +
+                    "### 💡 建议在面试中补充的细节\n" +
+                    "- 面试时分享一次现场突发状况（如设备故障或时间超时），说明你是如何在 5 分钟内协调解决的。"
                 }
                 else -> {
-                    "少侠！这段经历蕴含着极佳的职场潜质，看我用 STAR 原则帮它镀一层金！🔮\n\n" +
-                    "【优化前】\n${prompt}\n\n" +
-                    "【AI 深度重构后（STAR法则）】\n★【团队项目交付与核心执行（通用方向）】\n" +
-                    "• S/T (背景): 面对无职场经验、资源约束紧迫等挑战，作为核心执行人，面临指标重组与高水准交付的考核压力。\n" +
-                    "• A (行动): 系统重构执行策略，优化工作量矩阵，将日常杂务梳理成 3 大结构化执行条目，实现任务进度的可视化跟踪。\n" +
-                    "• R (结果): 提前达成预设目标，实现了工作效率的多维跃进，完美切合职场核心抗压和结果导向技能。\n\n" +
-                    "•【💡 求职加分建议】\n不管做什么经历，多提“流程重构”、“指标量化”和“高效执行”，你就是 HR 眼里的高潜力人才！💪"
+                    "### 🎯 职场能力转化亮点\n" +
+                    "- **核心能力提取**：业务流程标准化、高韧性执行力、关键指标达成意识\n" +
+                    "- **价值分析**：任何在校基础事务只要梳理出方法论与可复用流程，在大厂 HR 眼中都是极具潜力的初阶业务沉淀。\n\n" +
+                    "### ✍️ 优化后话术推荐\n" +
+                    "> **原表达**：${prompt}\n" +
+                    "> **职场化表达**：负责项目基础数据流与协作节点管理，搭建轻量化进度追踪台账，消除跨组信息同步壁垒；将日常处理周期缩减 30%，保障整体里程碑节点高质量准时交付。\n\n" +
+                    "### 💡 建议在面试中补充的细节\n" +
+                    "- 强调你在这段经历中主动优化的流程或自建的模板工具，展现你超越同龄人的自主驱动力与职场素养。"
                 }
             }
         } else {
-            return "少侠！我是你的 AI 生涯规划师。想探索考证路线吗？建议直接回复您的专业或意向岗位，我将利用 Gemini API 为您推算最对口的考证路径与避坑经验。也可以去【双向检索】中直接查查属于你的证书图谱哦！"
+            // TUTOR_AI (职业规划师) 兜底：输出严格符合 Skill 的结构化 JSON
+            return """
+            {
+              "career_summary": "基于当前背景与目标【${prompt.ifBlank { "综合求职" }}】，您的工科专业底座良好，但在核心准入资质与行业实战方面仍有提升空间，具备优秀的冲刺潜力。",
+              "match_score": 85,
+              "advantages": [
+                "目标岗位与专业方向具有良好的契合度，学习与工程领悟力强",
+                "具备基础知识储备与求职方向定位"
+              ],
+              "gaps": [
+                "缺少目标岗位核心法定红线或高含金量准入证书",
+                "实战项目量化成果较少，面试深度追问容易暴露短板"
+              ],
+              "short_term_roadmap": {
+                "timeline": "1-3个月（准备冲刺期）",
+                "action_items": [
+                  "集中精力攻克对应行业的核心门槛证书（如软考/法考/财会）",
+                  "系统梳理在校项目与课题成果，提炼出可量化的核心业务亮点"
+                ]
+              },
+              "mid_term_roadmap": {
+                "timeline": "6-12个月（稳固提升期）",
+                "action_items": [
+                  "锁定秋招/春招提前批，进行全真模拟笔试与面试冲刺",
+                  "参与1-2个高质量行业实践或企业级项目，夯实履历深度"
+                ]
+              },
+              "recommended_certificates": [
+                {
+                  "cert_name": "信息系统项目管理师(软考高级)",
+                  "reason": "国企/大厂校招顶级加分项，评定技术职称的核心依据",
+                  "priority": "HIGH"
+                },
+                {
+                  "cert_name": "法律职业资格证书(A证)",
+                  "reason": "公考法务/监察/国企合规极高含金量准入门槛",
+                  "priority": "MEDIUM"
+                }
+              ]
+            }
+            """.trimIndent()
         }
     }
 

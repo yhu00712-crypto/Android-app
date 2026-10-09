@@ -1,6 +1,6 @@
 {
-  "name": "证书职业双向检索",
-  "description": "高校学生专属的 150 行业职业与 24 黄金证书双向网状检索系统，提供求职信使已读未读互动及生涯成长通关树规划。",
+  "name": "证道职途",
+  "description": "基于「职业-证书」双向图谱检索架构与大模型赋能的名企持证直聘全链路平台。",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
