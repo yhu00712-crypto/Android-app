@@ -1,6 +1,6 @@
 {
   "name": "证道职途",
-  "description": "基于「职业-证书」双向图谱检索架构与大模型赋能的名企持证直聘全链路平台。",
+  "description": "基于职业与证书双向图谱检索架构的大模型赋能名企持证直聘全链路平台",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

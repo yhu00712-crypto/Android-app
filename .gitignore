@@ -2,6 +2,7 @@
 .gradle
 .kotlin
 /local.properties
+local.properties
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -9,10 +10,29 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+
+# Build outputs & caches
+build/
+**/build/
+.build-outputs/
+*.apk
+*.aab
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# Keystores & sensitive files
 .env
 debug.keystore
+debug.keystore.base64
+*.keystore
+
+# Local data & temp scripts
+jobs.json
+*.csv
+*.sql
+*.py
+*.pyc
+__pycache__/
+
+

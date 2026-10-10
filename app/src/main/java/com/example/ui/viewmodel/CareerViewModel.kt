@@ -108,7 +108,11 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
     private val aiPrefs = application.getSharedPreferences("ai_settings_prefs", Context.MODE_PRIVATE)
 
     val aiProvider = MutableStateFlow(aiPrefs.getString("ai_provider", "DEEPSEEK") ?: "DEEPSEEK")
-    val deepSeekApiKey = MutableStateFlow(aiPrefs.getString("deepseek_api_key", "") ?: "")
+    val deepSeekApiKey: MutableStateFlow<String> = MutableStateFlow(
+        aiPrefs.getString("deepseek_api_key", "")?.ifBlank {
+            com.example.data.network.ApiConfigHelper.getDeepSeekKey()
+        } ?: com.example.data.network.ApiConfigHelper.getDeepSeekKey()
+    )
     val deepSeekBaseUrl = MutableStateFlow(aiPrefs.getString("deepseek_base_url", "https://api.deepseek.com") ?: "https://api.deepseek.com")
     val deepSeekModel = MutableStateFlow(aiPrefs.getString("deepseek_model", "deepseek-chat") ?: "deepseek-chat")
 

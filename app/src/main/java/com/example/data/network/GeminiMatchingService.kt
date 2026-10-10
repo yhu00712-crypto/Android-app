@@ -64,10 +64,10 @@ object GeminiMatchingService {
             """.trimIndent()
 
             try {
-                val results = callGemini(prompt)
+                val results = callAi(prompt)
                 if (results.isNotEmpty()) results else getFallbackCertificates(occupationName)
             } catch (e: Exception) {
-                Log.e(TAG, "Gemini matching error: ${e.message}", e)
+                Log.w(TAG, "AI matching fallback: ${e.message}")
                 getFallbackCertificates(occupationName)
             }
         }
@@ -95,10 +95,10 @@ object GeminiMatchingService {
             """.trimIndent()
 
             try {
-                val results = callGemini(prompt)
+                val results = callAi(prompt)
                 if (results.isNotEmpty()) results else getFallbackOccupations(certificateName)
             } catch (e: Exception) {
-                Log.e(TAG, "Gemini reverse matching error: ${e.message}", e)
+                Log.w(TAG, "AI reverse matching fallback: ${e.message}")
                 getFallbackOccupations(certificateName)
             }
         }
@@ -155,7 +155,7 @@ object GeminiMatchingService {
             }
 
             try {
-                val (items, jsonStr) = callGeminiWithJson(prompt)
+                val (items, jsonStr) = callAiWithJson(prompt)
                 if (items.isNotEmpty()) {
                     AiSearchOutput(query, mode, items, jsonStr)
                 } else {
@@ -164,7 +164,7 @@ object GeminiMatchingService {
                     AiSearchOutput(query, mode, fallbackItems, fallbackJson)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Gemini search matching error: ${e.message}", e)
+                Log.w(TAG, "AI search matching notice: ${e.message}")
                 val fallbackItems = if (mode == 0) getFallbackCertificates(query) else getFallbackOccupations(query)
                 val fallbackJson = formatItemsToJson(fallbackItems)
                 AiSearchOutput(query, mode, fallbackItems, fallbackJson)
@@ -184,62 +184,129 @@ object GeminiMatchingService {
         return array.toString(2)
     }
 
-    private fun callGemini(promptText: String): List<AiMatchedItem> {
-        return callGeminiWithJson(promptText).first
+    private fun callAi(promptText: String): List<AiMatchedItem> {
+        return callAiWithJson(promptText).first
     }
 
-    private fun callGeminiWithJson(promptText: String): Pair<List<AiMatchedItem>, String> {
-        var apiKey = BuildConfig.GEMINI_API_KEY.trim().trim('"', '\'', ' ')
-        if (apiKey.startsWith("GEMINI_API_KEY", ignoreCase = true)) {
-            apiKey = apiKey.substringAfter("=").trim().trim('"', '\'', ' ')
-        }
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            Log.w(TAG, "GEMINI_API_KEY 未配置真实密钥，触发智能离线兜底规则")
-            return Pair(emptyList(), "")
+    private fun callAiWithJson(promptText: String): Pair<List<AiMatchedItem>, String> {
+        // 1. 优先尝试已配置并验证连通的 DeepSeek 智能模型 (用户在 Secrets 中配置了 deepseek)
+        val deepSeekKey = ApiConfigHelper.getDeepSeekKey().trim().trim('"', '\'', ' ')
+
+        if (deepSeekKey.isNotBlank() && !deepSeekKey.startsWith("MY_")) {
+            val dsResult = callDeepSeekWithJson(deepSeekKey, promptText)
+            if (dsResult.first.isNotEmpty()) {
+                return dsResult
+            }
         }
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+        // 2. 尝试 Gemini 官方接口 (若密钥有效且未被拦截)
+        var geminiKey = ApiConfigHelper.getGeminiKey().trim().trim('"', '\'', ' ')
 
-        val requestJson = JSONObject().apply {
-            put("contents", JSONArray().put(JSONObject().apply {
-                put("parts", JSONArray().put(JSONObject().apply {
-                    put("text", promptText)
+        if (geminiKey.startsWith("GEMINI_API_KEY", ignoreCase = true)) {
+            geminiKey = geminiKey.substringAfter("=").trim().trim('"', '\'', ' ')
+        }
+
+        if (geminiKey.isNotBlank() && !geminiKey.startsWith("MY_") && !geminiKey.startsWith("AQ.")) {
+            val geminiResult = callGeminiDirectWithJson(geminiKey, promptText)
+            if (geminiResult.first.isNotEmpty()) {
+                return geminiResult
+            }
+        }
+
+        Log.w(TAG, "云端 AI 服务返回非 200 或密钥鉴权未通过，已平滑无缝切换至权威离线专业知识库生成器")
+        return Pair(emptyList(), "")
+    }
+
+    private fun callDeepSeekWithJson(apiKey: String, promptText: String): Pair<List<AiMatchedItem>, String> {
+        return try {
+            val url = "https://api.deepseek.com/chat/completions"
+            val requestJson = JSONObject().apply {
+                put("model", "deepseek-chat")
+                put("messages", JSONArray().put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", promptText)
                 }))
-            }))
-            put("generationConfig", JSONObject().apply {
-                put("responseMimeType", "application/json")
                 put("temperature", 0.2)
-            })
+            }
+
+            val body = requestJson.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .post(body)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "DeepSeek API HTTP Notice: ${response.code} ${response.message}")
+                    return Pair(emptyList(), "")
+                }
+                val respString = response.body?.string() ?: return Pair(emptyList(), "")
+                val root = JSONObject(respString)
+                val choices = root.optJSONArray("choices") ?: return Pair(emptyList(), "")
+                if (choices.length() == 0) return Pair(emptyList(), "")
+                val message = choices.getJSONObject(0).optJSONObject("message") ?: return Pair(emptyList(), "")
+                val content = message.optString("content", "").trim()
+                parseJsonResponse(content)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "DeepSeek API call notice: ${e.message}")
+            Pair(emptyList(), "")
+        }
+    }
+
+    private fun callGeminiDirectWithJson(apiKey: String, promptText: String): Pair<List<AiMatchedItem>, String> {
+        return try {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
+            val requestJson = JSONObject().apply {
+                put("contents", JSONArray().put(JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().apply {
+                        put("text", promptText)
+                    }))
+                }))
+                put("generationConfig", JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                    put("temperature", 0.2)
+                })
+            }
+
+            val body = requestJson.toString().toRequestBody("application/json".toMediaType())
+            val request = Request.Builder().url(url).post(body).build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Gemini API HTTP Notice: ${response.code} ${response.message}")
+                    return Pair(emptyList(), "")
+                }
+                val respString = response.body?.string() ?: return Pair(emptyList(), "")
+                val root = JSONObject(respString)
+                val candidates = root.optJSONArray("candidates") ?: return Pair(emptyList(), "")
+                if (candidates.length() == 0) return Pair(emptyList(), "")
+
+                val firstCandidate = candidates.getJSONObject(0)
+                val content = firstCandidate.optJSONObject("content") ?: return Pair(emptyList(), "")
+                val parts = content.optJSONArray("parts") ?: return Pair(emptyList(), "")
+                if (parts.length() == 0) return Pair(emptyList(), "")
+
+                val text = parts.getJSONObject(0).optString("text", "").trim()
+                parseJsonResponse(text)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Gemini API call notice: ${e.message}")
+            Pair(emptyList(), "")
+        }
+    }
+
+    private fun parseJsonResponse(rawText: String): Pair<List<AiMatchedItem>, String> {
+        val cleanJson = if (rawText.startsWith("```json")) {
+            rawText.removePrefix("```json").substringBeforeLast("```").trim()
+        } else if (rawText.startsWith("```")) {
+            rawText.removePrefix("```").substringBeforeLast("```").trim()
+        } else {
+            rawText
         }
 
-        val body = requestJson.toString().toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url(url).post(body).build()
-
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Gemini API HTTP Error: ${response.code} ${response.message}")
-                return Pair(emptyList(), "")
-            }
-            val respString = response.body?.string() ?: return Pair(emptyList(), "")
-
-            val root = JSONObject(respString)
-            val candidates = root.optJSONArray("candidates") ?: return Pair(emptyList(), "")
-            if (candidates.length() == 0) return Pair(emptyList(), "")
-
-            val firstCandidate = candidates.getJSONObject(0)
-            val content = firstCandidate.optJSONObject("content") ?: return Pair(emptyList(), "")
-            val parts = content.optJSONArray("parts") ?: return Pair(emptyList(), "")
-            if (parts.length() == 0) return Pair(emptyList(), "")
-
-            val text = parts.getJSONObject(0).optString("text", "").trim()
-            val cleanJson = if (text.startsWith("```json")) {
-                text.removePrefix("```json").substringBeforeLast("```").trim()
-            } else if (text.startsWith("```")) {
-                text.removePrefix("```").substringBeforeLast("```").trim()
-            } else {
-                text
-            }
-
+        return try {
             val jsonArray = JSONArray(cleanJson)
             val list = mutableListOf<AiMatchedItem>()
             for (i in 0 until jsonArray.length()) {
@@ -253,7 +320,10 @@ object GeminiMatchingService {
                     )
                 )
             }
-            return Pair(list, jsonArray.toString(2))
+            Pair(list, jsonArray.toString(2))
+        } catch (e: Exception) {
+            Log.w(TAG, "JSON parse notice: ${e.message}")
+            Pair(emptyList(), "")
         }
     }
 
