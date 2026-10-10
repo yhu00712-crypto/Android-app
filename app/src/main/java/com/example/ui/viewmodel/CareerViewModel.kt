@@ -203,6 +203,538 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- 🏢 用户身份体系 (企业招聘端 vs 个人求职端) ---
+    private val rolePrefs = application.getSharedPreferences("user_role_prefs", Context.MODE_PRIVATE)
+
+    val userRoleMode: MutableStateFlow<UserRoleMode> = MutableStateFlow(
+        when (rolePrefs.getString("saved_user_role", null)) {
+            "ENTERPRISE" -> UserRoleMode.ENTERPRISE
+            "PERSONAL" -> UserRoleMode.PERSONAL
+            else -> UserRoleMode.UNSELECTED
+        }
+    )
+
+    // 控制身份选择弹窗显示 (首次进入或主动切换时弹出)
+    val showRoleSelectionDialog = MutableStateFlow(
+        userRoleMode.value == UserRoleMode.UNSELECTED
+    )
+
+    fun selectRole(role: UserRoleMode, rememberChoice: Boolean = true) {
+        userRoleMode.value = role
+        showRoleSelectionDialog.value = false
+        if (rememberChoice && role != UserRoleMode.UNSELECTED) {
+            rolePrefs.edit().putString("saved_user_role", role.name).apply()
+        }
+    }
+
+    fun openRoleSelection() {
+        showRoleSelectionDialog.value = true
+    }
+
+    fun switchRole() {
+        val nextRole = if (userRoleMode.value == UserRoleMode.ENTERPRISE) UserRoleMode.PERSONAL else UserRoleMode.ENTERPRISE
+        selectRole(nextRole, rememberChoice = true)
+    }
+
+    // --- 🏢 企业端状态管理 ---
+    val enterpriseCurrentTab = MutableStateFlow(0) // 0:工作台, 1:找人才, 2:职位管理, 3:沟通, 4:企业中心
+
+    val enterpriseProfile = MutableStateFlow(
+        EnterpriseCompanyProfile(
+            companyName = "星澜数智科技 (深圳) 有限公司 · 云计算与智能产业集群",
+            shortName = "星澜智科",
+            industry = "互联网 / 基础软件 / 人工智能",
+            scale = "10000人以上",
+            financeStage = "已上市",
+            address = "深圳市南山区粤海街道高新南十二路88号星澜智谷研发中心A座",
+            creditCode = "91440300MA5H8X9Q2L",
+            isVerified = true,
+            recruiterName = "林思远",
+            recruiterTitle = "资深技术招聘专家 / HRBP",
+            recruiterWorkNo = "XL-HR-88206",
+            slogan = "数智赋能未来，直聘持证专业菁英",
+            welfareTags = listOf("六险一金", "持证高额技能津贴", "全额公积金", "双休弹性打卡", "免费早晚餐", "租房安居补贴", "资深AI架构师导师制")
+        )
+    )
+
+    fun updateRecruiterProfile(
+        name: String,
+        title: String,
+        workNo: String,
+        department: String = "",
+        phone: String = "",
+        email: String = "",
+        welcomeMsg: String = ""
+    ) {
+        val current = enterpriseProfile.value
+        enterpriseProfile.value = current.copy(
+            recruiterName = name.ifBlank { current.recruiterName },
+            recruiterTitle = title.ifBlank { current.recruiterTitle },
+            recruiterWorkNo = workNo.ifBlank { current.recruiterWorkNo },
+            recruiterDepartment = if (department.isNotBlank()) department else current.recruiterDepartment,
+            recruiterPhone = if (phone.isNotBlank()) phone else current.recruiterPhone,
+            recruiterEmail = if (email.isNotBlank()) email else current.recruiterEmail,
+            recruiterWelcomeMsg = if (welcomeMsg.isNotBlank()) welcomeMsg else current.recruiterWelcomeMsg
+        )
+    }
+
+    fun updateCompanyProfile(
+        companyName: String,
+        shortName: String,
+        industry: String,
+        scale: String,
+        financeStage: String,
+        address: String,
+        creditCode: String,
+        slogan: String,
+        welfareTags: List<String>
+    ) {
+        val current = enterpriseProfile.value
+        enterpriseProfile.value = current.copy(
+            companyName = companyName.ifBlank { current.companyName },
+            shortName = shortName.ifBlank { current.shortName },
+            industry = industry.ifBlank { current.industry },
+            scale = scale.ifBlank { current.scale },
+            financeStage = financeStage.ifBlank { current.financeStage },
+            address = address.ifBlank { current.address },
+            creditCode = creditCode.ifBlank { current.creditCode },
+            slogan = slogan.ifBlank { current.slogan },
+            welfareTags = if (welfareTags.isNotEmpty()) welfareTags else current.welfareTags
+        )
+    }
+
+    // 企业端人才库
+    val enterpriseCandidates = MutableStateFlow(
+        listOf(
+            EnterpriseCandidate(
+                id = "CAND_ZCH",
+                name = "张楚航",
+                avatarColor = 0xFF1E88E5,
+                targetPosition = "Android 研发架构师 / 云原生全栈工程师",
+                expectedSalary = "18k-28k",
+                school = "华中科技大学",
+                degree = "软件工程 · 本科在读",
+                graduationYear = "2026 届应届",
+                jobStatus = "离校实习 · 随时到岗",
+                matchScore = 98,
+                mandatoryCerts = listOf("信息系统项目管理师 (软考高级)", "法律职业资格 A 证", "软件设计师 (软考中级)"),
+                skillTags = listOf("Kotlin", "Jetpack Compose", "Room / SQLite", "Spring Boot", "高并发微服务", "系统架构设计"),
+                highlights = "软考高级+法考A证双持证；第十四届挑战杯全国金奖；曾在头部数智云中台实习，主导微服务重构与Room本地数据库优化，高并发吞吐提升35%。",
+                workOrProjectSummary = "拥有端到端全链路研发架构经验，带领5人团队研发「基于知识图谱的职场考证双向检索系统」获省级一等奖。",
+                isBookmarked = false,
+                isInvited = false
+            ),
+            EnterpriseCandidate(
+                id = "CAND_LL",
+                name = "李林",
+                avatarColor = 0xFF7B1FA2,
+                targetPosition = "高级财务合规总监 / 投行IPO分析师",
+                expectedSalary = "22k-35k",
+                school = "上海交通大学",
+                degree = "会计学 · 硕士",
+                graduationYear = "2025 届应届",
+                jobStatus = "在职看机会 · 1个月内到岗",
+                matchScore = 96,
+                mandatoryCerts = listOf("注册会计师 CPA (专业阶段全科)", "证券从业资格", "基金从业资格"),
+                skillTags = listOf("CPA全科", "财务尽职调查", "IPO合规", "合并报表审计", "税务筹划"),
+                highlights = "CPA一次性全科通过；四大会计师事务所核心项目实习；主导两家科技拟IPO企业底稿尽调与内控合规审计。",
+                workOrProjectSummary = "精通中国会计准则与国际IFRS，具备深厚资本市场财务建模与数据分析实操功底。",
+                isBookmarked = false,
+                isInvited = false
+            ),
+            EnterpriseCandidate(
+                id = "CAND_CH",
+                name = "陈浩",
+                avatarColor = 0xFF00897B,
+                targetPosition = "云原生 / K8s 基础设施研发专家",
+                expectedSalary = "25k-40k",
+                school = "浙江大学",
+                degree = "计算机科学与技术 · 本科",
+                graduationYear = "2024 届",
+                jobStatus = "已离职 · 随时到岗",
+                matchScore = 95,
+                mandatoryCerts = listOf("CKA (Kubernetes认证管理员)", "系统架构设计师 (软考高级)", "华为认证 ICT 专家 (HCIE Cloud)"),
+                skillTags = listOf("Kubernetes / Docker", "Golang", "Service Mesh", "高可用容灾", "Linux内核调优"),
+                highlights = "持CKA与HCIE顶级双认证；拥有独角兽企业核心容器集群运维与Operator自动化开发实战；主导异地多活灾备建设。",
+                workOrProjectSummary = "深入掌握K8s调度机制与Cobra客户端开发，开源社区贡献者。",
+                isBookmarked = false,
+                isInvited = false
+            ),
+            EnterpriseCandidate(
+                id = "CAND_ZRX",
+                name = "赵若曦",
+                avatarColor = 0xFFD81B60,
+                targetPosition = "涉外数据合规总监 / 跨国法律顾问",
+                expectedSalary = "20k-32k",
+                school = "中国政法大学",
+                degree = "民商法学 · 硕士",
+                graduationYear = "2025 届应届",
+                jobStatus = "离校实习 · 随时到岗",
+                matchScore = 99,
+                mandatoryCerts = listOf("国家统一法律职业资格证书 (法考A证)", "国际隐私合规认证 (CIPP/E)", "英语专业八级 TEM-8"),
+                skillTags = listOf("法考A证", "GDPR数据出境合规", "涉外合同审查", "知识产权争议解决", "商事仲裁"),
+                highlights = "法考客观题230+分首考通过；红圈律所资本市场与跨境数据合规实习经验；流利英文谈判与双语合同草拟。",
+                workOrProjectSummary = "参与头部互联网平台海外出海反垄断与隐私保护安全风险评估体系搭建。",
+                isBookmarked = false,
+                isInvited = false
+            ),
+            EnterpriseCandidate(
+                id = "CAND_ZWB",
+                name = "周文博",
+                avatarColor = 0xFFE65100,
+                targetPosition = "总造价工程师 / 一级项目总指挥",
+                expectedSalary = "24k-38k",
+                school = "同济大学",
+                degree = "土木工程与工程管理 · 本科",
+                graduationYear = "2023 届",
+                jobStatus = "在职看机会 · 2周内到岗",
+                matchScore = 94,
+                mandatoryCerts = listOf("一级造价工程师", "一级建造师 (建筑工程)", "PMP 项目管理专业人士"),
+                skillTags = listOf("一造/一建双证", "BIM 5D全生命周期", "大型总承包EPC", "成本全流程精细管控", "招投标清标"),
+                highlights = "持住建部一建+一造双硬性准入证书；曾主导两座40万平超高层综合体全阶段概预算编制与结算审核，核减工程款超3000万。",
+                workOrProjectSummary = "深谙广联达与BIM计量计价软件，具备特级资质施工国企核心项目管理经验。",
+                isBookmarked = false,
+                isInvited = false
+            ),
+            EnterpriseCandidate(
+                id = "CAND_SYH",
+                name = "孙艺涵",
+                avatarColor = 0xFF5E35B1,
+                targetPosition = "国际研学首席双语导师 / 重点高中英语骨干",
+                expectedSalary = "15k-25k",
+                school = "北京师范大学",
+                degree = "英语语言文学 · 硕士",
+                graduationYear = "2026 届应届",
+                jobStatus = "毕业求职 · 随时到岗",
+                matchScore = 97,
+                mandatoryCerts = listOf("高级中学教师资格证 (英语)", "英语专业八级 (TEM-8 优秀)", "CATTI 二级笔译"),
+                skillTags = listOf("高级中学教资", "剑桥少儿考官资质", "跨文化沟通", "分层教学课程研发", "国际双语研学"),
+                highlights = "北师大硕士；教育部高级中学教师资格；获全国大学生英语演讲比赛特等奖；全国翻译专业资格认证。",
+                workOrProjectSummary = "曾主编面向知名国际学校的定制研学课案，教学满意度达99.5%。",
+                isBookmarked = false,
+                isInvited = false
+            )
+        )
+    )
+
+    // 企业端发布的职位列表
+    val enterpriseJobs = MutableStateFlow(
+        listOf(
+            EnterpriseJobPosting(
+                id = "E_JOB_1",
+                title = "Android 研发架构师 (云终端)",
+                department = "云与智慧产业事业群 · 终端平台部",
+                salary = "25k-45k",
+                location = "深圳 · 南山",
+                headCount = 3,
+                mandatoryCerts = listOf("软件设计师 (软考中级)", "信息系统项目管理师 (软考高级)"),
+                preferredCerts = listOf("大学英语六级 (CET-6)", "软考系统架构设计师"),
+                experienceReq = "应届硕博 / 1-3年",
+                educationReq = "本科及以上",
+                jobDescription = "负责核心云终端 Android 客户端基础架构演进，参与 Compose UI 组件库落地与音视频实时低延迟网络传输底层优化；推动质量工程与稳定性治理。",
+                applicantCount = 28,
+                viewCount = 480,
+                isOnline = true,
+                postedTime = "2小时前"
+            ),
+            EnterpriseJobPosting(
+                id = "E_JOB_2",
+                title = "涉外法务合规经理 (海外业务)",
+                department = "法务综合部 · 跨国合规组",
+                salary = "20k-35k",
+                location = "北京 · 海淀",
+                headCount = 2,
+                mandatoryCerts = listOf("国家统一法律职业资格证书 (法考A证)"),
+                preferredCerts = listOf("国际隐私合规认证 (CIPP/E)", "英语专业八级 TEM-8"),
+                experienceReq = "应届优秀 / 1-3年",
+                educationReq = "硕士及以上",
+                jobDescription = "负责出海游戏及云业务的数据安全合规论证，起草并审核海外跨境商事法律文书；对接境外反垄断与消费者权益法律监管合规。",
+                applicantCount = 35,
+                viewCount = 620,
+                isOnline = true,
+                postedTime = "昨天"
+            ),
+            EnterpriseJobPosting(
+                id = "E_JOB_3",
+                title = "资本市场财务总监助理 (投融资)",
+                department = "企业发展事业群 · 战略财务部",
+                salary = "22k-38k",
+                location = "上海 · 徐汇",
+                headCount = 2,
+                mandatoryCerts = listOf("注册会计师 CPA (专业阶段全科)"),
+                preferredCerts = listOf("特许金融分析师 CFA", "证券从业资格"),
+                experienceReq = "1-3年 / 优秀应届生",
+                educationReq = "本科及以上",
+                jobDescription = "参与被投企业财务尽职调查与投后运营跟踪，主导合并财务报表复核与资本市场估值建模；协助推进并购重组项目底稿申报。",
+                applicantCount = 19,
+                viewCount = 310,
+                isOnline = true,
+                postedTime = "3天前"
+            ),
+            EnterpriseJobPosting(
+                id = "E_JOB_4",
+                title = "云原生容器基础设施专家",
+                department = "星澜智云基础设施与AI架构部",
+                salary = "30k-50k",
+                location = "深圳 · 南山",
+                headCount = 4,
+                mandatoryCerts = listOf("CKA (Kubernetes认证管理员)", "系统架构设计师 (软考高级)"),
+                preferredCerts = listOf("华为认证 HCIE Cloud"),
+                experienceReq = "3-5年",
+                educationReq = "本科及以上",
+                jobDescription = "负责百万级容器调度平台稳定性运维与智能化自治系统研发，深入分析内核调度瓶颈，建设高可用跨云多活控制平面。",
+                applicantCount = 14,
+                viewCount = 275,
+                isOnline = true,
+                postedTime = "4天前"
+            )
+        )
+    )
+
+    // 企业端候选人沟通列表
+    val enterpriseConversations = MutableStateFlow(
+        listOf(
+            CandidateConversation(
+                id = "CONV_ZCH",
+                candidateId = "CAND_ZCH",
+                candidateName = "张楚航",
+                candidateSchool = "华中科技大学 · 软件工程",
+                candidateCertTag = "软考高级 + 法考A证",
+                targetPosition = "Android 研发架构师",
+                avatarColor = 0xFF1E88E5,
+                lastMessage = "林老师您好！我对云终端 Compose 架构重构非常感兴趣，已发在线简历。",
+                lastMessageTime = "10:24",
+                hasUnread = true,
+                unreadCount = 2
+            ),
+            CandidateConversation(
+                id = "CONV_LL",
+                candidateId = "CAND_LL",
+                candidateName = "李林",
+                candidateSchool = "上海交通大学 · 会计学硕士",
+                candidateCertTag = "CPA 专业阶段全科",
+                targetPosition = "高级财务合规总监",
+                avatarColor = 0xFF7B1FA2,
+                lastMessage = "感谢贵司对我的关注，我随时方便进行线上飞书专业复试！",
+                lastMessageTime = "09:40",
+                hasUnread = true,
+                unreadCount = 1
+            ),
+            CandidateConversation(
+                id = "CONV_ZRX",
+                candidateId = "CAND_ZRX",
+                candidateName = "赵若曦",
+                candidateSchool = "中国政法大学 · 民商法学",
+                candidateCertTag = "法考A证 + CIPP/E",
+                targetPosition = "涉外法务合规经理",
+                avatarColor = 0xFFD81B60,
+                lastMessage = "我已经提交了涉外数据出境合规的调研方案简报，请查阅附件。",
+                lastMessageTime = "昨天",
+                hasUnread = false,
+                unreadCount = 0
+            ),
+            CandidateConversation(
+                id = "CONV_CH",
+                candidateId = "CAND_CH",
+                candidateName = "陈浩",
+                candidateSchool = "浙江大学 · 计算机科学",
+                candidateCertTag = "CKA + 软考高级",
+                targetPosition = "云原生容器基础设施专家",
+                avatarColor = 0xFF00897B,
+                lastMessage = "关于跨可用区容灾切换机制，我们可以约个技术二面详聊底层实现。",
+                lastMessageTime = "前天",
+                hasUnread = false,
+                unreadCount = 0
+            )
+        )
+    )
+
+    // 企业端面试邀约记录
+    val interviewInvites = MutableStateFlow(
+        listOf(
+            InterviewInvite(
+                id = "INV_1",
+                candidateId = "CAND_ZCH",
+                candidateName = "张楚航",
+                positionTitle = "Android 研发架构师 (云终端)",
+                interviewTime = "2026-10-15 14:30",
+                interviewType = "线上视频面试 (AI智联会议)",
+                locationOrLink = "https://meeting.starstream.ai/room/88920194",
+                notes = "请准备15分钟架构设计作品分享及法定软考证书原件核验",
+                status = "候选人已接受"
+            ),
+            InterviewInvite(
+                id = "INV_2",
+                candidateId = "CAND_LL",
+                candidateName = "李林",
+                positionTitle = "资本市场财务总监助理",
+                interviewTime = "2026-10-16 10:00",
+                interviewType = "线上视频面试 (AI智联会议)",
+                locationOrLink = "https://meeting.starstream.ai/room/99301824",
+                notes = "重点考察财务底稿尽调逻辑与CPA会计准则实操分析",
+                status = "待候选人确认"
+            )
+        )
+    )
+
+    // 企业端搜索与筛选状态
+    val enterpriseSearchTalentQuery = MutableStateFlow("")
+    val enterpriseSelectedCertFilter = MutableStateFlow("全部")
+    val activeEnterpriseCandidate = MutableStateFlow<EnterpriseCandidate?>(null)
+
+    // 企业端与候选人的对话消息流
+    val enterpriseChatMessages = MutableStateFlow<Map<String, List<ChatMessage>>>(
+        mapOf(
+            "CAND_ZCH" to listOf(
+                ChatMessage("m1", "RECRUITER", "楚航同学你好！看到你持有软考高级与法考A证，并且在知名云原生实验室实习过，背景非常出色！", "10:15", true),
+                ChatMessage("m2", "USER", "林老师您好！我对咱们云终端的 Android 架构演进与 Compose 深度调优非常向往！", "10:20", true),
+                ChatMessage("m3", "RECRUITER", "我们组正在推进新一代全栈云终端，非常看重高并发与本地数据一致性保障。何时方便进行技术面试？", "10:22", true),
+                ChatMessage("m4", "USER", "我已提交了在线简历，周四或周五下午都非常方便，随时可以接入会议！", "10:24", true)
+            ),
+            "CAND_LL" to listOf(
+                ChatMessage("m1", "RECRUITER", "李林同学你好，注册会计师 CPA 全科在校内通过非常不易，业务底子很硬！", "09:30", true),
+                ChatMessage("m2", "USER", "感谢林老师认可！我在四大会计所参与过科创板IPO审计，对合并报表与税务合规很有实操经验。", "09:35", true),
+                ChatMessage("m3", "USER", "感谢贵司对我的关注，我随时方便进行线上飞书专业复试！", "09:40", true)
+            )
+        )
+    )
+
+    fun postEnterpriseJob(
+        title: String,
+        department: String,
+        salary: String,
+        location: String,
+        headCount: Int,
+        mandatoryCerts: List<String>,
+        preferredCerts: List<String>,
+        experienceReq: String,
+        educationReq: String,
+        jobDescription: String
+    ) {
+        val newJob = EnterpriseJobPosting(
+            id = "E_JOB_${System.currentTimeMillis()}",
+            title = title.trim(),
+            department = department.trim().ifEmpty { "技术与业务研发中心" },
+            salary = salary.trim().ifEmpty { "20k-35k" },
+            location = location.trim().ifEmpty { "深圳" },
+            headCount = if (headCount <= 0) 1 else headCount,
+            mandatoryCerts = mandatoryCerts,
+            preferredCerts = preferredCerts,
+            experienceReq = experienceReq.ifEmpty { "经验不限 / 优秀应届" },
+            educationReq = educationReq.ifEmpty { "本科及以上" },
+            jobDescription = jobDescription.trim().ifEmpty { "负责核心业务系统架构研发，推动持证专业规范落地。" },
+            applicantCount = 0,
+            viewCount = 1,
+            isOnline = true,
+            postedTime = "刚刚"
+        )
+        val current = enterpriseJobs.value.toMutableList()
+        current.add(0, newJob)
+        enterpriseJobs.value = current
+    }
+
+    fun toggleJobStatus(jobId: String) {
+        val current = enterpriseJobs.value.toMutableList()
+        val index = current.indexOfFirst { it.id == jobId }
+        if (index >= 0) {
+            val old = current[index]
+            current[index] = old.copy(isOnline = !old.isOnline)
+            enterpriseJobs.value = current
+        }
+    }
+
+    fun bookmarkCandidate(candidateId: String) {
+        val current = enterpriseCandidates.value.toMutableList()
+        val index = current.indexOfFirst { it.id == candidateId }
+        if (index >= 0) {
+            val old = current[index]
+            current[index] = old.copy(isBookmarked = !old.isBookmarked)
+            enterpriseCandidates.value = current
+        }
+    }
+
+    fun sendInterviewInvite(
+        candidateId: String,
+        positionTitle: String,
+        time: String,
+        type: String,
+        linkOrLoc: String,
+        notes: String
+    ) {
+        val candidate = enterpriseCandidates.value.find { it.id == candidateId }
+        val invite = InterviewInvite(
+            id = "INV_${System.currentTimeMillis()}",
+            candidateId = candidateId,
+            candidateName = candidate?.name ?: "候选人",
+            positionTitle = positionTitle,
+            interviewTime = time,
+            interviewType = type,
+            locationOrLink = linkOrLoc,
+            notes = notes,
+            status = "待候选人确认"
+        )
+        val current = interviewInvites.value.toMutableList()
+        current.add(0, invite)
+        interviewInvites.value = current
+
+        val candList = enterpriseCandidates.value.toMutableList()
+        val cIdx = candList.indexOfFirst { it.id == candidateId }
+        if (cIdx >= 0) {
+            candList[cIdx] = candList[cIdx].copy(isInvited = true)
+            enterpriseCandidates.value = candList
+        }
+
+        sendEnterpriseMessage(candidateId, "【面试邀请函】诚邀您参与「$positionTitle」专业面试。\n时间：$time\n形式：$type\n地点/链接：$linkOrLoc\n备注：$notes")
+    }
+
+    fun sendEnterpriseMessage(candidateId: String, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+
+        val msgMap = enterpriseChatMessages.value.toMutableMap()
+        val list = (msgMap[candidateId] ?: emptyList()).toMutableList()
+        list.add(
+            ChatMessage(
+                id = "msg_${System.currentTimeMillis()}",
+                sender = "RECRUITER",
+                content = trimmed,
+                timestamp = "刚刚",
+                isRead = true
+            )
+        )
+        msgMap[candidateId] = list
+        enterpriseChatMessages.value = msgMap
+
+        val convList = enterpriseConversations.value.toMutableList()
+        val cIdx = convList.indexOfFirst { it.candidateId == candidateId }
+        if (cIdx >= 0) {
+            val oldConv = convList[cIdx]
+            convList[cIdx] = oldConv.copy(lastMessage = trimmed, lastMessageTime = "刚刚")
+            enterpriseConversations.value = convList
+        } else {
+            val cand = enterpriseCandidates.value.find { it.id == candidateId }
+            if (cand != null) {
+                convList.add(
+                    0,
+                    CandidateConversation(
+                        id = "CONV_${System.currentTimeMillis()}",
+                        candidateId = cand.id,
+                        candidateName = cand.name,
+                        candidateSchool = cand.school,
+                        candidateCertTag = cand.mandatoryCerts.firstOrNull() ?: "持证人才",
+                        targetPosition = cand.targetPosition,
+                        avatarColor = cand.avatarColor,
+                        lastMessage = trimmed,
+                        lastMessageTime = "刚刚",
+                        hasUnread = false,
+                        unreadCount = 0
+                    )
+                )
+                enterpriseConversations.value = convList
+            }
+        }
+    }
+
     // --- UI 导航状态 ---
     val currentTab = MutableStateFlow(0) // 0: 招聘求职, 1: 搭伙圈, 2: 求职信使, 3: 个人主页
     val showOnlineResumeScreen = MutableStateFlow(false)
@@ -241,7 +773,7 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         listOf(
             ResumeWorkExp(
                 id = "exp_1",
-                company = "腾讯科技 (深圳) 有限公司",
+                company = "星澜数智科技 (深圳) 有限公司",
                 role = "移动端/后端研发实习生",
                 period = "2025.06 - 2025.10",
                 description = "参与核心业务中台微服务接口研发与性能调优，基于 Kotlin 与 Spring Boot 重构高并发任务分发模块，吞吐提升 35%；主导移动端本地 Room 数据库缓存与网络拦截层优化，网络异常重试成功率达 99.8%。"
@@ -630,9 +1162,9 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 industry = "互联网/IT"
             ),
             RecruitingJob(
-                id = "JOB_TENCENT",
+                id = "JOB_STARSTREAM",
                 title = "产品经理助理 (科创项目)",
-                company = "腾讯科创实验室",
+                company = "星澜科创实验室",
                 salary = "12k-20k",
                 location = "深圳",
                 avatarColor = 0xFFFF7096,

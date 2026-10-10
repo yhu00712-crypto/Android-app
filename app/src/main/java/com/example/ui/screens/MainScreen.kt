@@ -48,12 +48,53 @@ import androidx.compose.ui.text.font.FontFamily
 import com.example.data.model.*
 import com.example.data.skills.CareerPlannerSkill
 import com.example.data.skills.CareerPlanningReport
+import com.example.data.model.UserRoleMode
 import com.example.ui.components.DeepSeekApiDialog
+import com.example.ui.enterprise.EnterpriseMainScreen
+import com.example.ui.enterprise.RoleSelectionDialog
 import com.example.ui.viewmodel.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
+    viewModel: CareerViewModel,
+    modifier: Modifier = Modifier
+) {
+    val currentRoleMode by viewModel.userRoleMode.collectAsState()
+    val showRoleSelectionDialog by viewModel.showRoleSelectionDialog.collectAsState()
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (currentRoleMode == UserRoleMode.ENTERPRISE) {
+            // 🏢 企业招聘端
+            EnterpriseMainScreen(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // 👤 个人求职者端 (现有内容全部完整保留为个人账户)
+            PersonalMainScreen(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // 🌟 新用户点开软件后弹出的企业与个人账户选择界面 (支持随时在界面切换)
+        if (showRoleSelectionDialog) {
+            RoleSelectionDialog(
+                viewModel = viewModel,
+                onDismissRequest = {
+                    if (currentRoleMode != UserRoleMode.UNSELECTED) {
+                        viewModel.showRoleSelectionDialog.value = false
+                    }
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PersonalMainScreen(
     viewModel: CareerViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -1855,6 +1896,87 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
 
         if (showAnimeSkinDialog) {
             AnimeSkinSelectorDialog(viewModel = viewModel, onDismiss = { showAnimeSkinDialog = false })
+        }
+
+        // 🏢 身份切换卡片：切换至企业招聘端 (我要招人)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { viewModel.selectRole(UserRoleMode.ENTERPRISE, rememberChoice = true) }
+                    .testTag("switch_to_enterprise_profile_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1565C0).copy(alpha = 0.08f)
+                ),
+                border = BorderStroke(1.2.dp, Color(0xFF1565C0).copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1565C0)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Business,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "切换至「企业招聘端」",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0D47A1)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = Color(0xFF1565C0).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "我要招人",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF1565C0),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "发布在招职位 · 检索国家法定持证人才 · AI初筛 · 邀约面试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "切换",
+                        tint = Color(0xFF1565C0)
+                    )
+                }
+            }
         }
 
         // 📋 个人在线标准简历卡片 (放在 MBTI 职场先锋认证 正上方)
@@ -4717,7 +4839,7 @@ fun OnlineResumeScreen(
                             value = tempCompany,
                             onValueChange = { tempCompany = it },
                             label = { Text("单位 / 科创项目组名称") },
-                            placeholder = { Text("例：腾讯科技 (深圳) 有限公司") },
+                            placeholder = { Text("例：星澜数智科技 (深圳) 有限公司") },
                             modifier = Modifier.fillMaxWidth().testTag("input_exp_company"),
                             singleLine = true
                         )

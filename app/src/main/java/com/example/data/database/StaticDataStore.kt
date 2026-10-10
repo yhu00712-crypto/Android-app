@@ -414,7 +414,7 @@ object StaticDataStore {
             Occupation("OCC_LIVESTREAM_HOST", "带货主播/助播", "低门槛·高成长", "7k-14k", "在直播间负责产品卖点讲解、现场憋单起号与粉丝实时互动留存。"),
             Occupation("OCC_VIDEO_EDITOR", "短视频剪辑编导", "低门槛·高成长", "5k-9k", "负责脚本构思、拍摄跟进，使用剪映/PR制作网感网速极佳的引流短视频。"),
             Occupation("OCC_XHS_CONSULTANT", "小红书探店推广策划", "低门槛·高成长", "5k-9k", "负责策划探店达人联动方案、挑选投放达人、审核推文关键词埋点。"),
-            Occupation("OCC_AD_BUYER", "流量广告投手 (AD)", "低门槛·高成长", "6k-12k", "负责巨量千川、腾讯广告日常预算配置、根据ROI数据实时调价。"),
+            Occupation("OCC_AD_BUYER", "流量广告投手 (AD)", "低门槛·高成长", "6k-12k", "负责巨量引擎、主流数智信息流广告日常预算配置、根据ROI数据实时调价。"),
             Occupation("OCC_USER_GROWTH", "用户精细化增长专员", "低门槛·高成长", "6k-11k", "设计新客APP注册首单立减、拉新返现活动，监测用户留存漏斗。"),
             Occupation("OCC_COMMUNITY_OPS", "私域流量池运营专员", "低门槛·高成长", "5k-9k", "负责企业微信群日常抽奖活跃、早晚报分享、策划私域快闪拼团。"),
             Occupation("OCC_COMEDY_PLANNER", "脱口秀剧场宣发策划", "低门槛·高成长", "5k-9k", "负责线下脱口秀售票推广、策划演员路演、编辑剧场小红书公众号。"),
