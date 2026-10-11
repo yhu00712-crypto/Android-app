@@ -35,9 +35,8 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
-      val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsStateWithLifecycle()
       val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
-      MyApplicationTheme(animeSkin = currentAnimeSkin, darkTheme = isDarkMode) {
+      MyApplicationTheme(darkTheme = isDarkMode) {
         MainScreen(
           viewModel = viewModel,
           modifier = Modifier.fillMaxSize()

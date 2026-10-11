@@ -9,7 +9,6 @@ import com.example.data.database.StaticDataStore
 import com.example.data.model.*
 import com.example.data.skills.CampusToCareerSkill
 import com.example.data.skills.CareerPlannerSkill
-import com.example.ui.theme.AnimeSkinTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -869,15 +868,9 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         resumeContestAwards.value = current
     }
 
-    // --- 🌟 动漫联名限定皮肤与二次元属性系统 (Anime Collab Limited Skin) ---
-    val selectedAnimeSkin = MutableStateFlow(AnimeSkinTheme.SAKURA_STARLIGHT)
     val isDarkMode = MutableStateFlow(false) // 默认日间模式 (白底黑字)
     val animeBattlePower = MutableStateFlow(98500) // 初始职场战斗力 / BP
     val animeAwakeningLevel = MutableStateFlow(99) // 觉醒等级 Lv.99
-
-    fun setAnimeSkin(skin: AnimeSkinTheme) {
-        selectedAnimeSkin.value = skin
-    }
 
     fun toggleDarkMode(enabled: Boolean) {
         isDarkMode.value = enabled
@@ -1988,7 +1981,7 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         val model = deepSeekModel.value.trim()
 
         if (apiKey.isEmpty()) {
-            return@withContext "⚠️ 【DeepSeek 未配置 API Key】\n\n您尚未配置自己的 DeepSeek API 密钥，请点击界面右上角【⚙️ API 设置】输入您的 Key 即可实时对话！\n\n为你提供本地专家参考回复：\n\n" + getLocalFallbackReply(systemInstruction, prompt)
+            return@withContext "⚠️ 【DeepSeek 未配置 API Key】\n\n您尚未配置自己的 DeepSeek API 密钥，请点击界面右上角【⚙️ API 设置】输入您的 Key 即可实时进行 AI 对话！"
         }
 
         val client = okhttp3.OkHttpClient.Builder()
@@ -2026,21 +2019,18 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
             client.newCall(request).execute().use { response ->
                 val bodyString = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    return@withContext "⚠️ 【DeepSeek API 请求失败 ${response.code}】\n\n$bodyString\n\n请检查 API Key 余额或代理地址。为您调取本地专家兜底：\n\n" +
-                        getLocalFallbackReply(systemInstruction, prompt)
+                    return@withContext "⚠️ 【DeepSeek API 请求失败 ${response.code}】\n\n$bodyString\n\n请检查 API Key 余额或代理地址。"
                 }
                 val content = parseOpenAiChatResponse(bodyString)
                 if (content.isNullOrBlank()) {
-                    "⚠️ 【DeepSeek 解析失败】无法提取内容。为您切换本地智能备选：\n\n" +
-                        getLocalFallbackReply(systemInstruction, prompt)
+                    "⚠️ 【DeepSeek 解析失败】无法从 API 响应中提取有效内容。"
                 } else {
                     content
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            "⚠️ 【DeepSeek 连接异常】${e.message}\n请检查网络连接或 API Base URL。为您调取本地专家回复：\n\n" +
-                getLocalFallbackReply(systemInstruction, prompt)
+            "⚠️ 【DeepSeek 连接异常】${e.message}\n请检查网络连接或 API Base URL。"
         }
     }
 
@@ -2071,8 +2061,7 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun callGeminiApi(systemInstruction: String, prompt: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val apiKey = com.example.BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            // 如果 API Key 未配置，优雅降级到本地离线智能模板
-            return@withContext getLocalFallbackReply(systemInstruction, prompt)
+            return@withContext "⚠️ 【Gemini API Key 未配置】请在 Secret 中配置 GEMINI_API_KEY。"
         }
 
         val client = okhttp3.OkHttpClient.Builder()
@@ -2111,17 +2100,14 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext "🤖 [安全网关提示] 信号暂时微弱。已自动为您连通备用星链路线：\n\n" + 
-                        getLocalFallbackReply(systemInstruction, prompt)
+                    return@withContext "🤖 [安全网关] Gemini API 请求失败 ${response.code}"
                 }
                 val bodyString = response.body?.string() ?: ""
-                parseGeminiResponse(bodyString) ?: ("🤖 [安全网关提示] 回响解析异常。为您切换到急救包：\n\n" + 
-                    getLocalFallbackReply(systemInstruction, prompt))
+                parseGeminiResponse(bodyString) ?: "🤖 [安全网关] Gemini 响应解析异常"
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            "🤖 [安全网关提示] 网络连接有波动。为您自动调取本地专家离线应答：\n\n" + 
-                getLocalFallbackReply(systemInstruction, prompt)
+            "🤖 [安全网关] 连接异常: ${e.message}"
         }
     }
 

@@ -855,7 +855,7 @@ fun ChatTabScreen(viewModel: CareerViewModel) {
 @Composable
 fun RecruitersListScreen(viewModel: CareerViewModel) {
     val recruitersList by viewModel.recruiters.collectAsState()
-    val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsState()
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -864,7 +864,7 @@ fun RecruitersListScreen(viewModel: CareerViewModel) {
                 .drawBehind {
                     drawRect(
                         brush = Brush.verticalGradient(
-                            colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                            colors = listOf(primaryColor, primaryColor.copy(alpha = 0.8f)),
                             startY = 0f,
                             endY = size.height
                         )
@@ -1235,9 +1235,9 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
-            reverseLayout = false
+            reverseLayout = true
         ) {
-            items(messages) { msg ->
+            items(messages.reversed()) { msg ->
                 ChatBubble(msg = msg)
             }
         }
@@ -1281,15 +1281,16 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
             OutlinedTextField(
                 value = inputMessageText,
                 onValueChange = { inputMessageText = it },
-                placeholder = { Text("发送消息给面试官...") },
+                placeholder = { Text(if (recruiter.id == "TUTOR_AI" || recruiter.id == "AGENT_RESUME_POLISH") "向 AI 专家提问或粘贴经历..." else "发送消息给面试官...") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
                 maxLines = 3,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
-                    if (inputMessageText.trim().isNotEmpty()) {
-                        viewModel.sendMessage(inputMessageText)
+                    val text = inputMessageText.trim()
+                    if (text.isNotEmpty()) {
                         inputMessageText = ""
+                        viewModel.sendMessage(text)
                         focusManager.clearFocus()
                     }
                 })
@@ -1297,9 +1298,10 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
             Spacer(modifier = Modifier.width(8.dp))
             FloatingActionButton(
                 onClick = {
-                    if (inputMessageText.trim().isNotEmpty()) {
-                        viewModel.sendMessage(inputMessageText)
+                    val text = inputMessageText.trim()
+                    if (text.isNotEmpty()) {
                         inputMessageText = ""
+                        viewModel.sendMessage(text)
                         focusManager.clearFocus()
                     }
                 },
@@ -1585,9 +1587,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
     val userMbti by viewModel.userMbti.collectAsState()
     var showMbtiDialog by remember { mutableStateOf(false) }
     
-    val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
-    var showAnimeSkinDialog by remember { mutableStateOf(false) }
 
     // 个人资料相关响应式状态
     val userNickname by viewModel.userNickname.collectAsState()
@@ -1618,13 +1618,14 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                 .verticalScroll(rememberScrollState())
         ) {
         // 1. 顶部个人简历名片渐变横幅
+        val primaryColor = MaterialTheme.colorScheme.primary
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .drawBehind {
                     drawRect(
                         brush = Brush.verticalGradient(
-                            colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                            colors = listOf(primaryColor, primaryColor.copy(alpha = 0.8f)),
                             startY = 0f,
                             endY = size.height
                         )
@@ -1798,44 +1799,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🎨", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "动漫IP皮肤 & 日夜间模式装扮",
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "当前IP: ${currentAnimeSkin.title} · ${if (isDarkMode) "🌙 夜间高燃机甲模式" else "☀️ 日间白底黑字模式"}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Button(
-                            onClick = { showAnimeSkinDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("切换皮肤 ➔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(10.dp))
-
+                 Column(modifier = Modifier.padding(14.dp)) {
                     // DeepSeek / AI 大模型 API 配置项
                     Row(
                         modifier = Modifier
@@ -1896,13 +1860,13 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = if (isDarkMode) "夜间模式 (EVA 炫彩机甲)" else "日间模式 (白底黑字 · 小樱/初音)",
+                                    text = if (isDarkMode) "夜间模式 (深色护眼)" else "日间模式 (明亮清晰)",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isDarkMode) "高反差极夜护眼与炫彩光效" else "纯白底色与深黑字，清晰明亮",
+                                    text = if (isDarkMode) "高反差极夜护眼" else "纯白底色与深黑字，清晰明亮",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1916,10 +1880,6 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                     }
                 }
             }
-        }
-
-        if (showAnimeSkinDialog) {
-            AnimeSkinSelectorDialog(viewModel = viewModel, onDismiss = { showAnimeSkinDialog = false })
         }
 
         // 🏢 身份切换卡片：切换至企业招聘端 (我要招人)
@@ -3415,7 +3375,7 @@ fun CampusCoCreateTabScreen(viewModel: CareerViewModel) {
     val selectedType by viewModel.selectedCoCreateType.collectAsState()
     val query by viewModel.coCreateSearchQuery.collectAsState()
     val isProfileCompleted by viewModel.isProfileCompleted.collectAsState()
-    val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsState()
+    val primaryColor = MaterialTheme.colorScheme.primary
     
     var showCreateDialog by remember { mutableStateOf(false) }
     var showIncompleteDialog by remember { mutableStateOf(false) }
@@ -3435,7 +3395,7 @@ fun CampusCoCreateTabScreen(viewModel: CareerViewModel) {
                         .drawBehind {
                             drawRect(
                                 brush = Brush.verticalGradient(
-                                    colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                                    colors = listOf(primaryColor, primaryColor.copy(alpha = 0.8f)),
                                     startY = 0f,
                                     endY = size.height
                                 )
@@ -6586,7 +6546,7 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
     var applyDialogTitle by remember { mutableStateOf("") }
 
     val focusManager = LocalFocusManager.current
-    val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsState()
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     var activeSearchTarget by remember { mutableStateOf(0) } // 0: 搜在招职位, 1: 查岗配证书(searchMode 0), 2: 持证找职业(searchMode 1)
     var isPolicyExpanded by remember { mutableStateOf(false) }
@@ -6607,7 +6567,7 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                     .drawBehind {
                         drawRect(
                             brush = Brush.verticalGradient(
-                                colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                                colors = listOf(primaryColor, primaryColor.copy(alpha = 0.8f)),
                                 startY = 0f,
                                 endY = size.height
                             )
@@ -7613,117 +7573,7 @@ data class MatchingResult(
     val desc: String
 )
 
-// 🌟 动漫联名限定皮肤装扮中心弹窗
-@Composable
-fun AnimeSkinSelectorDialog(
-    viewModel: CareerViewModel,
-    onDismiss: () -> Unit
-) {
-    val currentSkin by viewModel.selectedAnimeSkin.collectAsState()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("✨", fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("动漫联名限定装扮中心", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("精选 4 款专属二次元联名高燃皮肤 · 专属光效与觉醒战力！", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                com.example.ui.theme.AnimeSkinTheme.values().forEach { skin ->
-                    val isSelected = currentSkin == skin
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setAnimeSkin(skin)
-                                onDismiss()
-                            },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) skin.primaryColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        ),
-                        border = BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) skin.primaryColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = skin.title,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (isSelected) skin.primaryColor else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = skin.primaryColor.copy(alpha = 0.2f)
-                                    ) {
-                                        Text(
-                                            text = skin.badge,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = skin.primaryColor,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = skin.seriesName,
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = skin.quote,
-                                    fontSize = 10.sp,
-                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(modifier = Modifier.size(16.dp).background(skin.primaryColor, CircleShape))
-                                Box(modifier = Modifier.size(16.dp).background(skin.secondaryColor, CircleShape))
-                                Box(modifier = Modifier.size(16.dp).background(skin.accentColor, CircleShape))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = currentSkin.primaryColor)
-            ) {
-                Text("确定", fontWeight = FontWeight.Bold)
-            }
-        },
-        shape = RoundedCornerShape(16.dp)
-    )
-}
 
 
 
