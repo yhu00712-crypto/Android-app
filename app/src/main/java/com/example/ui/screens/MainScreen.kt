@@ -879,7 +879,7 @@ fun RecruitersListScreen(viewModel: CareerViewModel) {
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
             val aiMentors = recruitersList.filter { it.id == "AGENT_RESUME_POLISH" || it.id == "TUTOR_AI" }
             val hrList = recruitersList.filter { it.id != "AGENT_RESUME_POLISH" && it.id != "TUTOR_AI" }
@@ -1576,6 +1576,10 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
     val userSchool by viewModel.userSchool.collectAsState()
     val userGrade by viewModel.userGrade.collectAsState()
     val userMajor by viewModel.userMajor.collectAsState()
+    val resumeTargetJob by viewModel.resumeTargetJob.collectAsState()
+    val resumeExpectCity by viewModel.resumeExpectCity.collectAsState()
+    val resumeSkillTags by viewModel.resumeSkillTags.collectAsState()
+    val resumeCertifications by viewModel.resumeCertifications.collectAsState()
     
     var showEditDetailsScreen by remember { mutableStateOf(false) }
     var showResumeOptimizationScreen by remember { mutableStateOf(false) }
@@ -1624,7 +1628,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = userNickname.firstOrNull()?.toString() ?: "楚",
+                            text = if (userNickname.isBlank() || userNickname == "待填写") "待" else userNickname.firstOrNull()?.toString() ?: "待",
                             color = Color.White,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.ExtraBold
@@ -1651,7 +1655,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "🥇 高校科创先锋",
+                                    text = if (isProfileCompleted) "🥇 高校科创先锋" else "🌱 新用户 (待完善)",
                                     color = Color.White,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -1677,12 +1681,12 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "$userSchool · $userMajor$userGrade",
+                            text = if (userSchool == "待填写" && userMajor == "待填写") "教育背景：待填写 (点击完善)" else "$userSchool · $userMajor$userGrade",
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.9f)
                         )
                         Text(
-                            text = "手机号: $userPhone",
+                            text = if (userPhone == "待填写") "手机号: 待填写" else "手机号: $userPhone",
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.7f)
                         )
@@ -1711,7 +1715,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isProfileCompleted) "名片状态：✨ 资质饱满，才华全亮 (100%)" else "名片状态：⚠️ 资料白如草稿纸 (去完善 15%)",
+                            text = if (isProfileCompleted) "名片状态：✨ 资质饱满，才华全亮 (100%)" else "名片状态：⚠️ 个人信息待填写 (去完善 0%)",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -1751,7 +1755,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                 modifier = Modifier.weight(1f).testTag("stat_chats")
             )
             ProfileStatCard(
-                value = if (isProfileCompleted) "95%" else "15%",
+                value = if (isProfileCompleted) "95%" else "0%",
                 label = "简历饱满度",
                 modifier = Modifier
                     .weight(1f)
@@ -2105,7 +2109,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                                 Text("教育背景", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "$userSchool · $userMajor",
+                                    text = if (userSchool == "待填写" && userMajor == "待填写") "待填写" else "$userSchool · $userMajor",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -2124,7 +2128,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                                 Text("权威资质", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "软考高级 / CET-6",
+                                    text = if (resumeCertifications.isEmpty()) "待填写 (暂无)" else resumeCertifications.take(2).joinToString(" / ") { it.take(6) },
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFE65100),
@@ -2677,7 +2681,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("意向求职/实习地区:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("杭州 / 深圳 / 上海", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(resumeExpectCity, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     
@@ -2687,7 +2691,7 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("团队定位角色:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("前端开发 / 算法开发 / 飞手", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(resumeTargetJob, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     
                     Spacer(modifier = Modifier.height(10.dp))
@@ -2695,19 +2699,137 @@ fun UserProfileTabScreen(viewModel: CareerViewModel) {
                     Text("核心擅长技术栈标签:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Kotlin", "Jetpack Compose", "Python", "无人机遥测", "商业BP").forEach { skill ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(skill, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    if (resumeSkillTags.isEmpty()) {
+                        Text("待填写 (可在个人在线标准简历中快速配置)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            resumeSkillTags.forEach { skill ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(skill, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // 6. ⚙️ 账户与身份设置
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { viewModel.switchRole() }
+                    .testTag("switch_to_enterprise_role_btn"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF1565C0)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Business,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "切换至「企业招聘端」",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0D47A1)
+                        )
+                        Text(
+                            text = "发布在招职位 · 检索持证人才库 · 邀约面试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "切换",
+                        tint = Color(0xFF1565C0)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 重新选择账户类型
+            OutlinedButton(
+                onClick = { viewModel.openRoleSelection() },
+                modifier = Modifier.fillMaxWidth().testTag("reopen_role_selection_btn"),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.ManageAccounts, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("重新选择账户类型 (身份选择弹窗)", fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 退出登录 / 重置为首次登录初始状态 (所有个人信息设为待填写)
+            var showResetConfirmDialog by remember { mutableStateOf(false) }
+            val context = LocalContext.current
+
+            OutlinedButton(
+                onClick = { showResetConfirmDialog = true },
+                modifier = Modifier.fillMaxWidth().testTag("reset_profile_btn"),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("重置个人信息为首次登录状态 (全量设为待填写)", fontWeight = FontWeight.SemiBold)
+            }
+
+            if (showResetConfirmDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetConfirmDialog = false },
+                    title = { Text("重置为首次登录状态", fontWeight = FontWeight.Bold) },
+                    text = { Text("确定要清空当前所有填写的个人信息并恢复为首次登录状态吗？个人姓名、就读高校、专业、联系方式及简历信息将全量重置为「待填写」。") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.resetProfileToDefault()
+                                showResetConfirmDialog = false
+                                Toast.makeText(context, "已重置为首次登录状态 (个人信息均已设为待填写)", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("确定重置", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetConfirmDialog = false }) {
+                            Text("取消")
+                        }
+                    }
+                )
             }
         }
         
@@ -3390,7 +3512,7 @@ fun CampusCoCreateTabScreen(viewModel: CareerViewModel) {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxWidth().weight(1f)
                 ) {
                     items(posts, key = { it.id }) { post ->
                         CoCreatePostCard(
@@ -4152,7 +4274,7 @@ fun OnlineResumeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = userRealName.firstOrNull()?.toString() ?: "楚",
+                                text = if (userRealName.isBlank() || userRealName == "待填写") "待" else userRealName.firstOrNull()?.toString() ?: "待",
                                 color = Color.White,
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.ExtraBold
@@ -4178,7 +4300,7 @@ fun OnlineResumeScreen(
                                         color = Color(0xFFE3F2FD)
                                     ) {
                                         Text(
-                                            text = "$userGender · $userGrade",
+                                            text = if (userGender == "待填写" && userGrade == "待填写") "基本信息待填写" else "$userGender · $userGrade",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF1976D2),
@@ -4216,7 +4338,7 @@ fun OnlineResumeScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "$userSchool · $userMajor",
+                                text = if (userSchool == "待填写" && userMajor == "待填写") "高校与专业背景：待填写" else "$userSchool · $userMajor",
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -4226,8 +4348,16 @@ fun OnlineResumeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("📞 $userPhone", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("✉️ $userEmail", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = if (userPhone == "待填写") "📞 手机号待填写" else "📞 $userPhone",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (userEmail == "待填写") "✉️ 邮箱待填写" else "✉️ $userEmail",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -4367,7 +4497,7 @@ fun OnlineResumeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "🎓 教育背景 (国家双一流高校背书)",
+                    text = if (userSchool == "待填写") "🎓 教育背景 (待填写)" else "🎓 教育背景",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -4394,10 +4524,23 @@ fun OnlineResumeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(userSchool, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                        Text(resumeEducationDegree, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = if (userSchool == "待填写") "就读高校: 待填写" else userSchool,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (resumeEducationDegree == "待填写") "学历: 待填写" else resumeEducationDegree,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Text("专业：$userMajor · 统招本科", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = if (userMajor == "待填写") "专业：待填写" else "专业：$userMajor · 统招本科",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -4406,7 +4549,7 @@ fun OnlineResumeScreen(
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "🏅 学业荣誉: $resumeHonors",
+                            text = if (resumeHonors == "待填写") "🏅 学业荣誉: 待填写" else "🏅 学业荣誉: $resumeHonors",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF2E7D32)
@@ -4773,11 +4916,14 @@ fun OnlineResumeScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    if (resumeSkillTags.isEmpty()) {
+                        Text("暂无技能标签，点击右上角「添加技能」配置核心技术栈 (待填写)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                         resumeSkillTags.forEach { tag ->
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -4938,11 +5084,11 @@ fun OnlineResumeScreen(
 
         // 🌟 3. 基本信息编辑弹窗 (Real Name, Gender, Grade, School, Major, Phone, Email)
         if (showEditBasicDialog) {
-            var tempName by remember { mutableStateOf(userRealName) }
-            var tempGender by remember { mutableStateOf(userGender) }
-            var tempGrade by remember { mutableStateOf(userGrade) }
-            var tempPhone by remember { mutableStateOf(userPhone) }
-            var tempEmail by remember { mutableStateOf(userEmail) }
+            var tempName by remember { mutableStateOf(if (userRealName == "待填写") "" else userRealName) }
+            var tempGender by remember { mutableStateOf(if (userGender == "待填写") "" else userGender) }
+            var tempGrade by remember { mutableStateOf(if (userGrade == "待填写") "" else userGrade) }
+            var tempPhone by remember { mutableStateOf(if (userPhone == "待填写") "" else userPhone) }
+            var tempEmail by remember { mutableStateOf(if (userEmail == "待填写") "" else userEmail) }
 
             AlertDialog(
                 onDismissRequest = { showEditBasicDialog = false },
@@ -4956,6 +5102,7 @@ fun OnlineResumeScreen(
                             value = tempName,
                             onValueChange = { tempName = it },
                             label = { Text("姓名") },
+                            placeholder = { Text("待填写") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -4964,6 +5111,7 @@ fun OnlineResumeScreen(
                                 value = tempGender,
                                 onValueChange = { tempGender = it },
                                 label = { Text("性别") },
+                                placeholder = { Text("男 / 女") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
                             )
@@ -4971,6 +5119,7 @@ fun OnlineResumeScreen(
                                 value = tempGrade,
                                 onValueChange = { tempGrade = it },
                                 label = { Text("年级") },
+                                placeholder = { Text("如：大三 / 研一") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
                             )
@@ -4979,6 +5128,7 @@ fun OnlineResumeScreen(
                             value = tempPhone,
                             onValueChange = { tempPhone = it },
                             label = { Text("手机号") },
+                            placeholder = { Text("待填写") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -4986,6 +5136,7 @@ fun OnlineResumeScreen(
                             value = tempEmail,
                             onValueChange = { tempEmail = it },
                             label = { Text("邮箱") },
+                            placeholder = { Text("待填写") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -4994,11 +5145,11 @@ fun OnlineResumeScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.userRealName.value = tempName
-                            viewModel.userGender.value = tempGender
-                            viewModel.userGrade.value = tempGrade
-                            viewModel.userPhone.value = tempPhone
-                            viewModel.userEmail.value = tempEmail
+                            viewModel.userRealName.value = tempName.trim().ifBlank { "待填写" }
+                            viewModel.userGender.value = tempGender.trim().ifBlank { "待填写" }
+                            viewModel.userGrade.value = tempGrade.trim().ifBlank { "待填写" }
+                            viewModel.userPhone.value = tempPhone.trim().ifBlank { "待填写" }
+                            viewModel.userEmail.value = tempEmail.trim().ifBlank { "待填写" }
                             showEditBasicDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4361EE))
@@ -5015,9 +5166,9 @@ fun OnlineResumeScreen(
 
         // 🌟 4. 求职意向编辑弹窗
         if (showEditPrefsDialog) {
-            var tempTargetJob by remember { mutableStateOf(resumeTargetJob) }
-            var tempExpectSalary by remember { mutableStateOf(resumeExpectSalary) }
-            var tempExpectCity by remember { mutableStateOf(resumeExpectCity) }
+            var tempTargetJob by remember { mutableStateOf(if (resumeTargetJob == "待填写") "" else resumeTargetJob) }
+            var tempExpectSalary by remember { mutableStateOf(if (resumeExpectSalary == "待填写") "" else resumeExpectSalary) }
+            var tempExpectCity by remember { mutableStateOf(if (resumeExpectCity == "待填写") "" else resumeExpectCity) }
 
             AlertDialog(
                 onDismissRequest = { showEditPrefsDialog = false },
@@ -5031,6 +5182,7 @@ fun OnlineResumeScreen(
                             value = tempTargetJob,
                             onValueChange = { tempTargetJob = it },
                             label = { Text("期望职位") },
+                            placeholder = { Text("例：全栈工程师 / 算法工程师") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5038,6 +5190,7 @@ fun OnlineResumeScreen(
                             value = tempExpectSalary,
                             onValueChange = { tempExpectSalary = it },
                             label = { Text("期望薪资") },
+                            placeholder = { Text("例：15K - 25K / 月") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5045,6 +5198,7 @@ fun OnlineResumeScreen(
                             value = tempExpectCity,
                             onValueChange = { tempExpectCity = it },
                             label = { Text("期望城市") },
+                            placeholder = { Text("例：深圳 / 杭州 / 上海") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5053,9 +5207,9 @@ fun OnlineResumeScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.resumeTargetJob.value = tempTargetJob
-                            viewModel.resumeExpectSalary.value = tempExpectSalary
-                            viewModel.resumeExpectCity.value = tempExpectCity
+                            viewModel.resumeTargetJob.value = tempTargetJob.trim().ifBlank { "待填写" }
+                            viewModel.resumeExpectSalary.value = tempExpectSalary.trim().ifBlank { "待填写" }
+                            viewModel.resumeExpectCity.value = tempExpectCity.trim().ifBlank { "待填写" }
                             showEditPrefsDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4361EE))
@@ -5072,7 +5226,7 @@ fun OnlineResumeScreen(
 
         // 🌟 5. 个人自我评价编辑弹窗
         if (showEditSelfIntroDialog) {
-            var tempIntro by remember { mutableStateOf(resumeSelfIntro) }
+            var tempIntro by remember { mutableStateOf(if (resumeSelfIntro == "待填写") "" else resumeSelfIntro) }
 
             AlertDialog(
                 onDismissRequest = { showEditSelfIntroDialog = false },
@@ -5082,6 +5236,7 @@ fun OnlineResumeScreen(
                         value = tempIntro,
                         onValueChange = { tempIntro = it },
                         label = { Text("自我评价与优势描述") },
+                        placeholder = { Text("待填写 (填写您的专业背景与个人亮点)") },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 5,
                         maxLines = 10
@@ -5090,7 +5245,7 @@ fun OnlineResumeScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.resumeSelfIntro.value = tempIntro
+                            viewModel.resumeSelfIntro.value = tempIntro.trim().ifBlank { "待填写" }
                             showEditSelfIntroDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4361EE))
@@ -5107,10 +5262,10 @@ fun OnlineResumeScreen(
 
         // 🌟 6. 教育经历编辑弹窗
         if (showEditEduDialog) {
-            var tempSchool by remember { mutableStateOf(userSchool) }
-            var tempMajor by remember { mutableStateOf(userMajor) }
-            var tempDegree by remember { mutableStateOf(resumeEducationDegree) }
-            var tempHonors by remember { mutableStateOf(resumeHonors) }
+            var tempSchool by remember { mutableStateOf(if (userSchool == "待填写") "" else userSchool) }
+            var tempMajor by remember { mutableStateOf(if (userMajor == "待填写") "" else userMajor) }
+            var tempDegree by remember { mutableStateOf(if (resumeEducationDegree == "待填写") "" else resumeEducationDegree) }
+            var tempHonors by remember { mutableStateOf(if (resumeHonors == "待填写") "" else resumeHonors) }
 
             AlertDialog(
                 onDismissRequest = { showEditEduDialog = false },
@@ -5124,6 +5279,7 @@ fun OnlineResumeScreen(
                             value = tempSchool,
                             onValueChange = { tempSchool = it },
                             label = { Text("就读高校") },
+                            placeholder = { Text("如：清华大学 / 浙江大学") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5131,6 +5287,7 @@ fun OnlineResumeScreen(
                             value = tempMajor,
                             onValueChange = { tempMajor = it },
                             label = { Text("所学专业") },
+                            placeholder = { Text("如：计算机科学与技术 / 软件工程") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -5146,6 +5303,7 @@ fun OnlineResumeScreen(
                             value = tempHonors,
                             onValueChange = { tempHonors = it },
                             label = { Text("学业荣誉与奖项") },
+                            placeholder = { Text("待填写") },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
                             maxLines = 4
@@ -5155,10 +5313,10 @@ fun OnlineResumeScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.userSchool.value = tempSchool
-                            viewModel.userMajor.value = tempMajor
-                            viewModel.resumeEducationDegree.value = tempDegree
-                            viewModel.resumeHonors.value = tempHonors
+                            viewModel.userSchool.value = tempSchool.trim().ifBlank { "待填写" }
+                            viewModel.userMajor.value = tempMajor.trim().ifBlank { "待填写" }
+                            viewModel.resumeEducationDegree.value = tempDegree.trim().ifBlank { "待填写" }
+                            viewModel.resumeHonors.value = tempHonors.trim().ifBlank { "待填写" }
                             showEditEduDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4361EE))
@@ -5648,7 +5806,7 @@ fun OnlineResumeScreen(
                 title = { Text("简历导出就绪", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
                 text = {
                     Text(
-                        text = "您的标准求职简历（含华中科技大学学籍印章、软考高级及官方考证资质核验）已自动封装为高清 PDF 格式，支持直接分享投递到 HR 邮箱或招聘平台！",
+                        text = "您的个人求职简历${if (userSchool != "待填写") "（含${userSchool}学籍与官方考证资质核验）" else "（含官方学籍与考证资质核验）"}已自动封装为高清 PDF 格式，支持直接分享投递到 HR 邮箱或招聘平台！",
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -5665,6 +5823,7 @@ fun OnlineResumeScreen(
             )
         }
     }
+}
 }
 
 // =========================================================
@@ -5685,14 +5844,14 @@ fun UserDetailedProfileScreen(
     val userMajor by viewModel.userMajor.collectAsState()
     val boundWeChat by viewModel.boundWeChat.collectAsState()
 
-    var tempRealName by remember { mutableStateOf(userRealName) }
-    var tempNickname by remember { mutableStateOf(userNickname) }
-    var tempPhone by remember { mutableStateOf(userPhone) }
-    var tempGender by remember { mutableStateOf(userGender) }
-    var tempSchool by remember { mutableStateOf(userSchool) }
-    var tempGrade by remember { mutableStateOf(userGrade) }
-    var tempMajor by remember { mutableStateOf(userMajor) }
-    var tempWeChat by remember { mutableStateOf(boundWeChat) }
+    var tempRealName by remember { mutableStateOf(if (userRealName == "待填写") "" else userRealName) }
+    var tempNickname by remember { mutableStateOf(if (userNickname == "待填写") "" else userNickname) }
+    var tempPhone by remember { mutableStateOf(if (userPhone == "待填写") "" else userPhone) }
+    var tempGender by remember { mutableStateOf(if (userGender == "待填写") "" else userGender) }
+    var tempSchool by remember { mutableStateOf(if (userSchool == "待填写") "" else userSchool) }
+    var tempGrade by remember { mutableStateOf(if (userGrade == "待填写") "" else userGrade) }
+    var tempMajor by remember { mutableStateOf(if (userMajor == "待填写") "" else userMajor) }
+    var tempWeChat by remember { mutableStateOf(if (boundWeChat == "待填写") "" else boundWeChat) }
 
     BackHandler { onBack() }
 
@@ -5752,7 +5911,7 @@ fun UserDetailedProfileScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = tempNickname.firstOrNull()?.toString() ?: "楚",
+                            text = if (tempNickname.isBlank() || tempNickname == "待填写") "待" else tempNickname.firstOrNull()?.toString() ?: "待",
                             color = Color.White,
                             fontSize = 28.sp,
                             fontWeight = FontWeight.ExtraBold
@@ -5766,7 +5925,7 @@ fun UserDetailedProfileScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "UID: ${tempPhone.hashCode().coerceAtLeast(100000)} (平台加密保护)",
+                        text = if (tempPhone.isBlank() || tempPhone == "待填写") "UID: 待绑定手机生成 (平台加密保护)" else "UID: ${tempPhone.hashCode().coerceAtLeast(100000)} (平台加密保护)",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -5795,6 +5954,7 @@ fun UserDetailedProfileScreen(
                         value = tempNickname,
                         onValueChange = { tempNickname = it },
                         label = { Text("搭伙圈昵称", fontWeight = FontWeight.Bold) },
+                        placeholder = { Text("待填写") },
                         modifier = Modifier.fillMaxWidth().testTag("edit_nickname"),
                         singleLine = true,
                         leadingIcon = { Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
@@ -5804,6 +5964,7 @@ fun UserDetailedProfileScreen(
                         value = tempRealName,
                         onValueChange = { tempRealName = it },
                         label = { Text("真实姓名 (仅实名比对用)", fontWeight = FontWeight.Bold) },
+                        placeholder = { Text("待填写") },
                         modifier = Modifier.fillMaxWidth().testTag("edit_realname"),
                         singleLine = true,
                         leadingIcon = { Icon(imageVector = Icons.Default.AccountBox, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
@@ -5838,6 +5999,7 @@ fun UserDetailedProfileScreen(
                         value = tempPhone,
                         onValueChange = { tempPhone = it },
                         label = { Text("手机号", fontWeight = FontWeight.Bold) },
+                        placeholder = { Text("待填写") },
                         modifier = Modifier.fillMaxWidth().testTag("edit_phone"),
                         singleLine = true,
                         leadingIcon = { Icon(imageVector = Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
@@ -5867,6 +6029,7 @@ fun UserDetailedProfileScreen(
                         value = tempSchool,
                         onValueChange = { tempSchool = it },
                         label = { Text("就读高校", fontWeight = FontWeight.Bold) },
+                        placeholder = { Text("如：清华大学 / 华中科技大学") },
                         modifier = Modifier.fillMaxWidth().testTag("edit_school"),
                         singleLine = true,
                         leadingIcon = { Icon(imageVector = Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
@@ -5880,6 +6043,7 @@ fun UserDetailedProfileScreen(
                             value = tempMajor,
                             onValueChange = { tempMajor = it },
                             label = { Text("所学专业", fontWeight = FontWeight.Bold) },
+                            placeholder = { Text("所学专业 (待填写)") },
                             modifier = Modifier.weight(1.2f).testTag("edit_major"),
                             singleLine = true
                         )
@@ -5887,6 +6051,7 @@ fun UserDetailedProfileScreen(
                             value = tempGrade,
                             onValueChange = { tempGrade = it },
                             label = { Text("年级", fontWeight = FontWeight.Bold) },
+                            placeholder = { Text("大三 / 研一") },
                             modifier = Modifier.weight(0.8f).testTag("edit_grade"),
                             singleLine = true
                         )
@@ -5900,17 +6065,18 @@ fun UserDetailedProfileScreen(
             Button(
                 onClick = {
                     // 保存草稿数据到全局 ViewModel StateFlows
-                    viewModel.userRealName.value = tempRealName
-                    viewModel.userNickname.value = tempNickname
-                    viewModel.userPhone.value = tempPhone
-                    viewModel.userGender.value = tempGender
-                    viewModel.userSchool.value = tempSchool
-                    viewModel.userGrade.value = tempGrade
-                    viewModel.userMajor.value = tempMajor
-                    viewModel.boundWeChat.value = tempWeChat
+                    viewModel.userRealName.value = tempRealName.trim().ifBlank { "待填写" }
+                    viewModel.userNickname.value = tempNickname.trim().ifBlank { "待填写" }
+                    viewModel.userPhone.value = tempPhone.trim().ifBlank { "待填写" }
+                    viewModel.userGender.value = tempGender.trim().ifBlank { "待填写" }
+                    viewModel.userSchool.value = tempSchool.trim().ifBlank { "待填写" }
+                    viewModel.userGrade.value = tempGrade.trim().ifBlank { "待填写" }
+                    viewModel.userMajor.value = tempMajor.trim().ifBlank { "待填写" }
+                    viewModel.boundWeChat.value = tempWeChat.trim().ifBlank { "待填写" }
                     
-                    // 设置为已完善状态
-                    viewModel.isProfileCompleted.value = true
+                    // 当关键信息填写后，设定为已完善
+                    val isCompleted = tempRealName.isNotBlank() || tempSchool.isNotBlank() || tempPhone.isNotBlank()
+                    viewModel.isProfileCompleted.value = isCompleted
                     onBack()
                 },
                 modifier = Modifier
@@ -6032,13 +6198,13 @@ fun ResumeOptimizationScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "正在优化：$userNickname 的求职简历",
+                            text = if (userNickname == "待填写") "正在优化：新用户的求职简历" else "正在优化：$userNickname 的求职简历",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "学籍背景：$userSchool · $userMajor ($userGrade)",
+                            text = if (userSchool == "待填写" && userMajor == "待填写") "学籍背景：待填写 (建议先完善个人信息)" else "学籍背景：$userSchool · $userMajor ($userGrade)",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -6395,868 +6561,920 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
     val focusManager = LocalFocusManager.current
     val currentAnimeSkin by viewModel.selectedAnimeSkin.collectAsState()
 
-    Column(
+    var activeSearchTarget by remember { mutableStateOf(0) } // 0: 搜在招职位, 1: 查岗配证书(searchMode 0), 2: 持证找职业(searchMode 1)
+    var isPolicyExpanded by remember { mutableStateOf(false) }
+
+    val currentQueryText = if (activeSearchTarget == 0) jobSearchQuery else searchQuery
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        // 顶部多功能输入框容器与渐变横幅 (求职招聘与智能双向检索合一)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .drawBehind {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
-                            startY = 0f,
-                            endY = size.height
-                        )
-                    )
-                }
-                .padding(top = 14.dp, bottom = 12.dp, start = 10.dp, end = 10.dp)
-        ) {
-            Column {
-                // 顶部标题与重置按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "证道职途",
-                                fontSize = 20.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 1.sp
+        // 1. 顶部渐变横幅 + 复合智能搜索与模式切换卡片 + 热门探索
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                                startY = 0f,
+                                endY = size.height
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color.White.copy(alpha = 0.2f)
-                            ) {
+                        )
+                    }
+                    .padding(top = 10.dp, bottom = 12.dp, start = 12.dp, end = 12.dp)
+            ) {
+                Column {
+                    // 顶部标题与重置按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "CertPass",
+                                    text = "证道职途",
+                                    fontSize = 19.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.sp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color.White.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = "CertPass",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "名企持证直聘 · 考证职业智能双向检索",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.resetAndReloadDatabase() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🧹", fontSize = 11.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "重置缓存",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 🌟 复合输入组件 (自适应手机屏幕宽度，无双层冗余搜索框)
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 2.dp,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            // 上半部：搜索文本输入行
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = if (activeSearchTarget == 0) MaterialTheme.colorScheme.primary
+                                           else if (activeSearchTarget == 1) Color(0xFF6C63FF)
+                                           else Color(0xFF009688),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .wrapContentHeight()
+                                ) {
+                                    if (currentQueryText.isEmpty()) {
+                                        Text(
+                                            text = if (activeSearchTarget == 0) "搜索在招职位、名企、城市、证书要求..."
+                                                   else if (activeSearchTarget == 1) "输入岗位关键词（如：律师、软件工程、会计、教师）"
+                                                   else "输入持有证书（如：法考、CPA、教资、软考、一建）",
+                                            fontSize = 12.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                            lineHeight = 17.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = currentQueryText,
+                                        onValueChange = {
+                                            if (activeSearchTarget == 0) {
+                                                viewModel.jobSearchQuery.value = it
+                                            } else {
+                                                viewModel.searchQuery.value = it
+                                                if (it.isNotBlank()) viewModel.addSearchHistory(it)
+                                            }
+                                        },
+                                        singleLine = true,
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                        keyboardActions = KeyboardActions(onSearch = {
+                                            focusManager.clearFocus()
+                                            if (activeSearchTarget != 0 && searchQuery.isNotBlank()) {
+                                                viewModel.addSearchHistory(searchQuery)
+                                            }
+                                        }),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .wrapContentHeight()
+                                    )
+                                }
+                                if (currentQueryText.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = {
+                                            if (activeSearchTarget == 0) {
+                                                viewModel.jobSearchQuery.value = ""
+                                            } else {
+                                                viewModel.searchQuery.value = ""
+                                            }
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "清除",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.8.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 下半部：三合一模式切换胶囊组 + 状态指示
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // 胶囊切换组 (自适应紧凑排版，360dp 手机不挤压)
+                                Row(
+                                    modifier = Modifier
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                        .padding(2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    // 💼 搜在招 胶囊
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (activeSearchTarget == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                activeSearchTarget = 0
+                                                viewModel.searchQuery.value = ""
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("💼", fontSize = 10.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "搜在招",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (activeSearchTarget == 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    // 🎯 配证书 胶囊
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (activeSearchTarget == 1) Color(0xFF6C63FF) else Color.Transparent,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                activeSearchTarget = 1
+                                                viewModel.searchMode.value = 0
+                                                viewModel.clearDetails()
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("🎯", fontSize = 10.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "配证书",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (activeSearchTarget == 1) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    // 🔍 找职业 胶囊
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (activeSearchTarget == 2) Color(0xFF009688) else Color.Transparent,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                activeSearchTarget = 2
+                                                viewModel.searchMode.value = 1
+                                                viewModel.clearDetails()
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("🔍", fontSize = 10.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "找职业",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (activeSearchTarget == 2) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // 右侧状态指示
+                                if (isBackendSearching) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(11.dp),
+                                            strokeWidth = 1.8.dp,
+                                            color = if (activeSearchTarget == 1) Color(0xFF6C63FF) else Color(0xFF009688)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "检索中...",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = if (activeSearchTarget == 0) "持证直聘"
+                                               else if (activeSearchTarget == 1) "门槛排查"
+                                               else "拓维图谱",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.padding(end = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 热门探索
+                    val hotTags = if (activeSearchTarget == 0) {
+                        listOf("🔥 算法工程师", "🔥 全栈开发", "🔥 注册会计师", "🔥 架构师", "🔥 法考法务", "🔥 项目经理", "🔥 建造师")
+                    } else if (activeSearchTarget == 1) {
+                        listOf("🔥 律师", "🔥 消防工程师", "🔥 软件工程师", "🔥 注册会计师", "🔥 高中教师", "🔥 执业药师")
+                    } else {
+                        listOf("📜 法律职业资格", "📜 注册会计师CPA", "📜 教师资格证", "📜 软考高项", "📜 一级建造师", "📜 证券从业")
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "热门:",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(hotTags) { tag ->
+                                val cleanTerm = tag.substringAfter(" ").trim()
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White.copy(alpha = 0.22f),
+                                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            if (activeSearchTarget == 0) {
+                                                viewModel.jobSearchQuery.value = cleanTerm
+                                            } else {
+                                                viewModel.searchQuery.value = cleanTerm
+                                                viewModel.addSearchHistory(cleanTerm)
+                                            }
+                                        }
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 📜 职业资格两类划分政策释义 (折叠/展开组件，默认紧凑模式仅占 36dp，可一键展开完整释义)
+        item {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { isPolicyExpanded = !isPolicyExpanded }
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📜", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "国家职业资格分类政策释义",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFEE2E2)
+                            ) {
+                                Text("准入类", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFE0F2FE)
+                            ) {
+                                Text("水平类", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                            }
+                        }
+                        Text(
+                            text = if (isPolicyExpanded) "收起 ▴" else "展开 ▾",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = isPolicyExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFFEE2E2),
+                                    border = BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = "🚨 准入类：无证不得执业",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFDC2626)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "关系公共安全与公众利益，国家依法依规实行从业准入，必须先取得证书方可独立执业（如法考、CPA、教资、医师等）。",
+                                            fontSize = 9.5.sp,
+                                            lineHeight = 13.sp,
+                                            color = Color(0xFF7F1D1D)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFE0F2FE),
+                                    border = BorderStroke(0.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = "💡 水平评价类：衡量技术水平",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0284C7)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "非强制执业准入，用于评价专业技能素养，供用人单位聘任、定级定薪与职称评定参考（如软考、CATTI等）。",
+                                            fontSize = 9.5.sp,
+                                            lineHeight = 13.sp,
+                                            color = Color(0xFF075985)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 找职业模式且未输入时，展示岗位类别标签栏
+        if (activeSearchTarget == 2 && searchQuery.isEmpty()) {
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    items(viewModel.categories) { cat ->
+                        val isSelected = cat == selectedCategory
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.setCategory(cat) },
+                            label = { Text(cat, fontWeight = FontWeight.Bold, fontSize = 11.5.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. 内容区域
+        if (activeSearchTarget == 0 || (searchQuery.isEmpty() && activeSearchTarget != 0)) {
+            // --- 名企持证直聘专区与筛选栏 ---
+            item {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                    // 标题与统计及重置筛选按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🔥 名企硬性持证直聘专区",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = "${jobsList.size}个在招",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = "名企持证直聘 · 考证职业智能双向检索",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.2f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { viewModel.resetAndReloadDatabase() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("🧹", fontSize = 11.sp)
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "重置缓存",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 🌟 宽阔大气的复合输入组件 (视口自适应宽 + 舒展内容高度 + 左右固定安全边距)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight()
-                            .padding(horizontal = 14.dp, vertical = 14.dp)
-                    ) {
-                        // 1. 上半部：宽敞舒展的搜索文本输入区
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = null,
-                                tint = if (searchMode == 0) Color(0xFF6C63FF) else Color(0xFF009688),
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .wrapContentHeight()
+                        val isFilterActive = jobSearchQuery.isNotBlank() || selectedJobCity != "全国" || selectedJobIndustry != "全部"
+                        if (isFilterActive) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { viewModel.resetJobFilters() }
                             ) {
-                                if (searchQuery.isEmpty()) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("🔄", fontSize = 10.sp)
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = if (searchMode == 0) "请输入岗位关键词（如：律师、软件工程师、会计、教师等）"
-                                               else "请输入持有证书（如：法律职业资格证、注册会计师CPA、教师资格证）",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                                        lineHeight = 18.sp
+                                        text = "重置筛选",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
-                                androidx.compose.foundation.text.BasicTextField(
-                                    value = searchQuery,
-                                    onValueChange = { 
-                                        viewModel.searchQuery.value = it 
-                                        if (it.isNotBlank()) viewModel.addSearchHistory(it)
-                                    },
-                                    singleLine = true,
-                                    textStyle = androidx.compose.ui.text.TextStyle(
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                    keyboardActions = KeyboardActions(onSearch = { 
-                                        focusManager.clearFocus() 
-                                        if (searchQuery.isNotBlank()) viewModel.addSearchHistory(searchQuery)
-                                    }),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .wrapContentHeight()
-                                )
-                            }
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { viewModel.searchQuery.value = "" },
-                                    modifier = Modifier.size(26.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Clear,
-                                        contentDescription = "清除",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.8.dp)
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // 2. 下半部：左下角操作切换复合 Tab + 右下角智能状态
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // 👈 左下角复合输入组件 (配证书 / 找职业 胶囊切换组)
-                            Row(
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                                    .padding(2.5.dp),
-                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                // 🎯 配证书 胶囊
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (searchMode == 0) Color(0xFF6C63FF) else Color.Transparent,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            viewModel.searchMode.value = 0
-                                            viewModel.clearDetails()
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("🎯", fontSize = 11.5.sp)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "配证书",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (searchMode == 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                // 🔍 找职业 胶囊
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (searchMode == 1) Color(0xFF009688) else Color.Transparent,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            viewModel.searchMode.value = 1
-                                            viewModel.clearDetails()
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("🔍", fontSize = 11.5.sp)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "找职业",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (searchMode == 1) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-
-                            // 👉 右下角状态指示 (检索中或智算模式)
-                            if (isBackendSearching) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(12.dp),
-                                        strokeWidth = 2.dp,
-                                        color = if (searchMode == 0) Color(0xFF6C63FF) else Color(0xFF009688)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        text = "实时云端检索中...",
-                                        fontSize = 11.sp,
-                                        color = if (searchMode == 0) Color(0xFF6C63FF) else Color(0xFF009688),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            } else {
-                                Text(
-                                    text = if (searchMode == 0) "硬性门槛排查" else "对口拓维图谱",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                // 🏷️ 横向可滚动胶囊标签按钮组 (热门探索与搜索联想)
-                val hotTags = if (searchMode == 0) { // 配证书 -> 热门岗位关键词
-                    listOf("🔥 律师", "🔥 消防工程师", "🔥 软件工程师", "🔥 注册会计师", "🔥 高中教师", "🔥 执业药师", "🔥 人力资源管理师")
-                } else { // 找职业 -> 热门证书推荐
-                    listOf("📜 法律职业资格", "📜 注册会计师CPA", "📜 教师资格证", "📜 软考高项", "📜 一级建造师", "📜 执业药师证", "📜 证券从业资格")
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "热门探索:",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    // 📍 城市所在地快捷筛选栏
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(hotTags) { tag ->
-                            val cleanTerm = tag.substringAfter(" ").trim()
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color.White.copy(alpha = 0.22f),
-                                border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.4f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable {
-                                        viewModel.searchQuery.value = cleanTerm
-                                        viewModel.addSearchHistory(cleanTerm)
-                                    }
-                            ) {
-                                Text(
-                                    text = tag,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                        Text(
+                            text = "📍 城市:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        val cities = listOf("全国", "北京", "上海", "深圳", "广州", "杭州", "成都", "武汉", "南京", "长沙")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(cities) { city ->
+                                val isSelected = selectedJobCity == city
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.selectedJobCity.value = city },
+                                    label = {
+                                        Text(
+                                            text = city,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // 💼 岗位行业分类筛选 Chip 栏
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "💼 行业:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        val industries = listOf("全部", "互联网/IT", "金融/证券", "财会/咨询", "教育/文传", "制造/工程", "医药/健康", "文旅/新兴", "绿色/能源")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(industries) { ind ->
+                                val isSelected = selectedJobIndustry == ind
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.selectedJobIndustry.value = ind },
+                                    label = {
+                                        Text(
+                                            text = ind,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(10.dp)
                                 )
                             }
                         }
                     }
                 }
             }
-        }
 
-        // 如果是 找职业 且 搜索框为空，显示岗位类别标签栏
-        if (searchMode == 1 && searchQuery.isEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(viewModel.categories) { cat ->
-                    val isSelected = cat == selectedCategory
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setCategory(cat) },
-                        label = { Text(cat, fontWeight = FontWeight.Bold, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // 📜 职业资格两类划分政策释义卡片 (准入类 vs 水平评价类)
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-        ) {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("📜", fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "国家职业资格分类政策释义：",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFFEE2E2),
-                        border = BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                        modifier = Modifier.weight(1f)
+            // 职位列表项
+            if (jobsList.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("🔍", fontSize = 32.sp)
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "🚨 准入类：无证不得执业",
-                                fontSize = 10.5.sp,
+                                text = "未找到与条件匹配的在招岗位",
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFDC2626)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "关系公共安全与公众利益，国家依法依规实行从业准入，必须先取得证书方可独立执业（如法考、CPA、教资、医师等）。",
-                                fontSize = 9.5.sp,
-                                lineHeight = 13.sp,
-                                color = Color(0xFF7F1D1D)
+                                text = "可尝试清空城市筛选、行业分类或输入其他关键词",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE0F2FE),
-                        border = BorderStroke(0.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(
-                                text = "💡 水平评价类：衡量技术水平",
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0284C7)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "非强制执业准入，用于评价专业技能素养，供用人单位聘任、定级定薪与职称评定参考（如软考、CATTI等）。",
-                                fontSize = 9.5.sp,
-                                lineHeight = 13.sp,
-                                color = Color(0xFF075985)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 主体内容区：若未输入搜索词，展示名企硬性持证直聘专区；若输入搜索词，展示实时网状检索结果
-        Box(modifier = Modifier.weight(1f)) {
-            if (searchQuery.isEmpty()) {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    item {
-                        Column {
-                            // 标题与统计及重置筛选按钮
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.resetJobFilters() },
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("重置所有筛选条件")
+                            }
+                        }
+                    }
+                }
+            } else {
+                items(jobsList, key = { it.id }) { job ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 5.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .background(Color(job.avatarColor), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Text(
-                                        text = "🔥 名企硬性持证直聘专区",
+                                        text = job.company.take(2),
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = job.title,
+                                        fontSize = 14.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                        ) {
+                                            Text(
+                                                text = job.industry,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = job.company,
+                                            fontSize = 11.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "•",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.outlineVariant
+                                        )
+                                        Text(
+                                            text = job.location,
+                                            fontSize = 11.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = job.salary,
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.6.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = job.description,
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            if (job.mandatoryCerts.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "🔒 硬性准入:",
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = Color(0xFFD90429)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(
-                                            text = "${jobsList.size}个在招",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                val isFilterActive = jobSearchQuery.isNotBlank() || selectedJobCity != "全国" || selectedJobIndustry != "全部"
-                                if (isFilterActive) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
-                                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { viewModel.resetJobFilters() }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("🔄", fontSize = 10.sp)
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = "重置筛选",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onErrorContainer
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // 🔍 岗位专用即时搜索框
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                shadowElevation = 1.dp
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (jobSearchQuery.isEmpty()) {
-                                            Text(
-                                                text = "搜索岗位、名企、城市、证书要求...",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                            )
-                                        }
-                                        androidx.compose.foundation.text.BasicTextField(
-                                            value = jobSearchQuery,
-                                            onValueChange = { viewModel.jobSearchQuery.value = it },
-                                            singleLine = true,
-                                            textStyle = androidx.compose.ui.text.TextStyle(
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                    if (jobSearchQuery.isNotEmpty()) {
-                                        IconButton(
-                                            onClick = { viewModel.jobSearchQuery.value = "" },
-                                            modifier = Modifier.size(20.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Clear,
-                                                contentDescription = "清空",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // 📍 城市所在地快捷筛选栏
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "📍 城市:",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val cities = listOf("全国", "北京", "上海", "深圳", "广州", "杭州", "成都", "武汉", "南京", "长沙")
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    items(cities) { city ->
-                                        val isSelected = selectedJobCity == city
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { viewModel.selectedJobCity.value = city },
-                                            label = {
-                                                Text(
-                                                    text = city,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                labelColor = MaterialTheme.colorScheme.onSurface
-                                            ),
-                                            border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                                            shape = RoundedCornerShape(10.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // 💼 岗位行业分类筛选 Chip 栏
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "💼 行业:",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val industries = listOf("全部", "互联网/IT", "金融/证券", "财会/咨询", "教育/文传", "制造/工程", "医药/健康", "文旅/新兴", "绿色/能源")
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    items(industries) { ind ->
-                                        val isSelected = selectedJobIndustry == ind
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { viewModel.selectedJobIndustry.value = ind },
-                                            label = {
-                                                Text(
-                                                    text = ind,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
-                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                labelColor = MaterialTheme.colorScheme.onSurface
-                                            ),
-                                            border = if (isSelected) null else BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                                            shape = RoundedCornerShape(10.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (jobsList.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 20.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(28.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text("🔎", fontSize = 38.sp)
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "暂无匹配的招聘岗位",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "在城市【$selectedJobCity】和行业【$selectedJobIndustry】下未检索到相关岗位，请尝试调整筛选条件",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Button(
-                                        onClick = { viewModel.resetJobFilters() },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                    ) {
-                                        Text("🔄 一键清空全部筛选条件", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        items(jobsList) { job ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .background(Color(job.avatarColor), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = job.company.take(2),
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = job.title,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
+                                        items(job.mandatoryCerts) { cert ->
                                             Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFFFF0F3),
+                                                border = BorderStroke(0.8.dp, Color(0xFFFFB3C1))
                                             ) {
                                                 Text(
-                                                    text = job.industry,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    text = cert,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFFC9184A),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )
                                             }
-                                            Text(
-                                                text = job.company,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = "•",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.outlineVariant
-                                            )
-                                            Text(
-                                                text = job.location,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = job.salary,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color(0xFFE65100)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    text = job.description,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                if (job.mandatoryCerts.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = "🔒 硬性准入:",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFD90429)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        LazyRow(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            items(job.mandatoryCerts) { cert ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = Color(0xFFFFF0F3),
-                                                    border = BorderStroke(1.dp, Color(0xFFFFB3C1))
-                                                ) {
-                                                    Text(
-                                                        text = cert,
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = Color(0xFFC9184A),
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
                                         }
                                     }
                                 }
+                            }
 
-                                if (job.preferredCerts.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = "⭐ 优先加分:",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF023E8A)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        LazyRow(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            items(job.preferredCerts) { cert ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = Color(0xFFE0F7FA),
-                                                    border = BorderStroke(1.dp, Color(0xFF80DEEA))
-                                                ) {
-                                                    Text(
-                                                        text = cert,
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = Color(0xFF0077B6),
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
+                            if (job.preferredCerts.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Button(
-                                        onClick = {
+                                    Text(
+                                        text = "⭐ 优先加分:",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF023E8A)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        items(job.preferredCerts) { cert ->
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFE0F7FA),
+                                                border = BorderStroke(0.8.dp, Color(0xFF80DEEA))
+                                            ) {
+                                                Text(
+                                                    text = cert,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFF0077B6),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = {
+                                        if (!isProfileCompleted) {
+                                            applyDialogTitle = "⚠️ 个人信息待完善"
+                                            applyDialogMessage = "为了向企业 HR 展示真实靠谱的高校科创背景，建议您先前往「个人主页」完善基础学籍与专业档案再行投递！"
+                                            showApplyDialog = true
+                                        } else {
                                             val recruiter = viewModel.recruiters.value.find { it.id == job.recruiterId }
                                                 ?: viewModel.recruiters.value.first()
                                             viewModel.startChatWith(recruiter)
                                             viewModel.currentTab.value = 2 // 求职信使
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                    ) {
-                                        Text("💬 投递简历并直连HR", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("💬 投递简历并直连HR", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
-                    }
                 }
-            } else {
-                if (searchMode == 0) {
-                    // 🎯 配证书 -> 检查是否有证书或职业匹配
-                    val hasCertMatches = certificatesList.isNotEmpty()
-                    val hasOccMatches = occupationsList.isNotEmpty()
+            }
+        } else {
+            // --- 智能双向检索结果 (配证书 / 找职业) ---
+            if (activeSearchTarget == 1) { // 🎯 配证书
+                val hasCertMatches = certificatesList.isNotEmpty()
+                val hasOccMatches = occupationsList.isNotEmpty()
 
-                    if (!hasCertMatches && !hasOccMatches) {
-                        // 搜索框内输入的职业搜索不到 -> 调用 AI 按照固定的 json 格式输出
+                if (!hasCertMatches && !hasOccMatches) {
+                    item {
                         AiNotFoundOutputView(
                             searchQuery = searchQuery,
                             searchMode = 0,
@@ -7264,58 +7482,50 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                             result = aiSearchResult,
                             onRetry = { viewModel.triggerAiSearchForNotFound(searchQuery, 0, forceRefresh = true) }
                         )
-                    } else if (hasCertMatches) {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(certificatesList) { cert ->
-                                val isExpanded = cert.id == selectedCertificateId
-                                CertificateCard(
-                                    certificate = cert,
-                                    isExpanded = isExpanded,
-                                    relatedOccs = if (isExpanded) relatedOccs else emptyList(),
-                                    aiMatches = if (isExpanded) aiCertificateMatches[cert.id] else null,
-                                    isAiLoading = isAiMatchingLoading && isExpanded,
-                                    onTriggerAi = { viewModel.triggerAiMatchForCertificate(cert, forceRefresh = true) },
-                                    onClick = {
-                                        if (isExpanded) viewModel.selectCertificate(null)
-                                        else viewModel.selectCertificate(cert.id, cert)
-                                    }
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(occupationsList) { occ ->
-                                val isExpanded = occ.id == selectedOccupationId
-                                OccupationCard(
-                                    occupation = occ,
-                                    isExpanded = isExpanded,
-                                    relatedCerts = if (isExpanded) relatedCerts else emptyList(),
-                                    aiMatches = if (isExpanded) aiOccupationMatches[occ.id] else null,
-                                    isAiLoading = isAiMatchingLoading && isExpanded,
-                                    onTriggerAi = { viewModel.triggerAiMatchForOccupation(occ, forceRefresh = true) },
-                                    onClick = {
-                                        if (isExpanded) viewModel.selectOccupation(null)
-                                        else viewModel.selectOccupation(occ.id, occ)
-                                    }
-                                )
-                            }
+                    }
+                } else if (hasCertMatches) {
+                    items(certificatesList, key = { it.id }) { cert ->
+                        val isExpanded = cert.id == selectedCertificateId
+                        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                            CertificateCard(
+                                certificate = cert,
+                                isExpanded = isExpanded,
+                                relatedOccs = if (isExpanded) relatedOccs else emptyList(),
+                                aiMatches = if (isExpanded) aiCertificateMatches[cert.id] else null,
+                                isAiLoading = isAiMatchingLoading && isExpanded,
+                                onTriggerAi = { viewModel.triggerAiMatchForCertificate(cert, forceRefresh = true) },
+                                onClick = {
+                                    if (isExpanded) viewModel.selectCertificate(null)
+                                    else viewModel.selectCertificate(cert.id, cert)
+                                }
+                            )
                         }
                     }
                 } else {
-                    // 🔍 找职业 -> 调用 occupations 职业数据库表格
-                    val hasOccMatches = occupationsList.isNotEmpty()
-                    val hasCertMatches = certificatesList.isNotEmpty()
+                    items(occupationsList, key = { it.id }) { occ ->
+                        val isExpanded = occ.id == selectedOccupationId
+                        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                            OccupationCard(
+                                occupation = occ,
+                                isExpanded = isExpanded,
+                                relatedCerts = if (isExpanded) relatedCerts else emptyList(),
+                                aiMatches = if (isExpanded) aiOccupationMatches[occ.id] else null,
+                                isAiLoading = isAiMatchingLoading && isExpanded,
+                                onTriggerAi = { viewModel.triggerAiMatchForOccupation(occ, forceRefresh = true) },
+                                onClick = {
+                                    if (isExpanded) viewModel.selectOccupation(null)
+                                    else viewModel.selectOccupation(occ.id, occ)
+                                }
+                            )
+                        }
+                    }
+                }
+            } else { // 🔍 找职业 (activeSearchTarget == 2)
+                val hasOccMatches = occupationsList.isNotEmpty()
+                val hasCertMatches = certificatesList.isNotEmpty()
 
-                    if (!hasOccMatches && !hasCertMatches) {
-                        // 搜索框内输入的职业搜索不到 -> 调用 AI 按照固定的 json 格式输出
+                if (!hasOccMatches && !hasCertMatches) {
+                    item {
                         AiNotFoundOutputView(
                             searchQuery = searchQuery,
                             searchMode = 1,
@@ -7323,55 +7533,48 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
                             result = aiSearchResult,
                             onRetry = { viewModel.triggerAiSearchForNotFound(searchQuery, 1, forceRefresh = true) }
                         )
-                    } else if (hasOccMatches) {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(occupationsList) { occ ->
-                                val isExpanded = occ.id == selectedOccupationId
-                                OccupationCard(
-                                    occupation = occ,
-                                    isExpanded = isExpanded,
-                                    relatedCerts = if (isExpanded) relatedCerts else emptyList(),
-                                    aiMatches = if (isExpanded) aiOccupationMatches[occ.id] else null,
-                                    isAiLoading = isAiMatchingLoading && isExpanded,
-                                    onTriggerAi = { viewModel.triggerAiMatchForOccupation(occ, forceRefresh = true) },
-                                    onClick = {
-                                        if (isExpanded) viewModel.selectOccupation(null)
-                                        else viewModel.selectOccupation(occ.id, occ)
-                                    }
-                                )
-                            }
+                    }
+                } else if (hasOccMatches) {
+                    items(occupationsList, key = { it.id }) { occ ->
+                        val isExpanded = occ.id == selectedOccupationId
+                        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                            OccupationCard(
+                                occupation = occ,
+                                isExpanded = isExpanded,
+                                relatedCerts = if (isExpanded) relatedCerts else emptyList(),
+                                aiMatches = if (isExpanded) aiOccupationMatches[occ.id] else null,
+                                isAiLoading = isAiMatchingLoading && isExpanded,
+                                onTriggerAi = { viewModel.triggerAiMatchForOccupation(occ, forceRefresh = true) },
+                                onClick = {
+                                    if (isExpanded) viewModel.selectOccupation(null)
+                                    else viewModel.selectOccupation(occ.id, occ)
+                                }
+                            )
                         }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(certificatesList) { cert ->
-                                val isExpanded = cert.id == selectedCertificateId
-                                CertificateCard(
-                                    certificate = cert,
-                                    isExpanded = isExpanded,
-                                    relatedOccs = if (isExpanded) relatedOccs else emptyList(),
-                                    aiMatches = if (isExpanded) aiCertificateMatches[cert.id] else null,
-                                    isAiLoading = isAiMatchingLoading && isExpanded,
-                                    onTriggerAi = { viewModel.triggerAiMatchForCertificate(cert, forceRefresh = true) },
-                                    onClick = {
-                                        if (isExpanded) viewModel.selectCertificate(null)
-                                        else viewModel.selectCertificate(cert.id, cert)
-                                    }
-                                )
-                            }
+                    }
+                } else {
+                    items(certificatesList, key = { it.id }) { cert ->
+                        val isExpanded = cert.id == selectedCertificateId
+                        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                            CertificateCard(
+                                certificate = cert,
+                                isExpanded = isExpanded,
+                                relatedOccs = if (isExpanded) relatedOccs else emptyList(),
+                                aiMatches = if (isExpanded) aiCertificateMatches[cert.id] else null,
+                                isAiLoading = isAiMatchingLoading && isExpanded,
+                                onTriggerAi = { viewModel.triggerAiMatchForCertificate(cert, forceRefresh = true) },
+                                onClick = {
+                                    if (isExpanded) viewModel.selectCertificate(null)
+                                    else viewModel.selectCertificate(cert.id, cert)
+                                }
+                            )
                         }
                     }
                 }
             }
         }
     }
+
 
     if (showApplyDialog) {
         AlertDialog(

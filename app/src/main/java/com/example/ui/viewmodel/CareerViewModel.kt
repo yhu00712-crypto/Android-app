@@ -749,59 +749,56 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
     // --- 个人信息完善状态 (默认未完善，点击可完善) ---
     val isProfileCompleted = MutableStateFlow(false)
 
-    // --- 真实个人资料状态 (可进行完整编辑与保存) ---
-    val userRealName = MutableStateFlow("张楚航")
-    val userNickname = MutableStateFlow("楚航学长")
-    val userPhone = MutableStateFlow("13888889999")
-    val userEmail = MutableStateFlow("zhangchuhang@hust.edu.cn")
-    val userGender = MutableStateFlow("男")
-    val userSchool = MutableStateFlow("华中科技大学")
-    val userGrade = MutableStateFlow("大三")
-    val userMajor = MutableStateFlow("软件工程")
-    val boundWeChat = MutableStateFlow("ch_zhang_99")
+    // --- 真实个人资料状态 (可进行完整编辑与保存，首次登录全量默认设为「待填写」) ---
+    val userRealName = MutableStateFlow("待填写")
+    val userNickname = MutableStateFlow("待填写")
+    val userPhone = MutableStateFlow("待填写")
+    val userEmail = MutableStateFlow("待填写")
+    val userGender = MutableStateFlow("待填写")
+    val userSchool = MutableStateFlow("待填写")
+    val userGrade = MutableStateFlow("待填写")
+    val userMajor = MutableStateFlow("待填写")
+    val boundWeChat = MutableStateFlow("待填写")
 
-    // --- 个人在线求职简历数据 (标准履历中心) ---
-    val resumeTargetJob = MutableStateFlow("软件开发工程师 / 全栈工程师")
-    val resumeExpectSalary = MutableStateFlow("15K - 25K / 月")
-    val resumeExpectCity = MutableStateFlow("杭州 / 深圳 / 上海 / 北京")
-    val resumeJobStatus = MutableStateFlow("离校实习 · 随时到岗")
-    val resumeEducationDegree = MutableStateFlow("本科学士 (2022 - 2026)")
-    val resumeSelfIntro = MutableStateFlow(
-        "华中科技大学软件工程在读，具备扎实的计算机科学基础与多端全栈落地实战经验。熟练掌握 Kotlin、Java、Android 与微服务架构，注重代码工程质量与高可用设计。在国家级/省级高校科创赛事中主导核心架构研发并获一等奖，具备出色的自驱力、业务问题拆解能力与跨学科团队协同领导力。"
-    )
-    val resumeWorkExperiences = MutableStateFlow(
-        listOf(
-            ResumeWorkExp(
-                id = "exp_1",
-                company = "星澜数智科技 (深圳) 有限公司",
-                role = "移动端/后端研发实习生",
-                period = "2025.06 - 2025.10",
-                description = "参与核心业务中台微服务接口研发与性能调优，基于 Kotlin 与 Spring Boot 重构高并发任务分发模块，吞吐提升 35%；主导移动端本地 Room 数据库缓存与网络拦截层优化，网络异常重试成功率达 99.8%。"
-            ),
-            ResumeWorkExp(
-                id = "exp_2",
-                company = "高校国家重点实验室 · 科创项目组",
-                role = "搭伙科创团队负责人 / 全栈架构师",
-                period = "2024.09 - 2025.05",
-                description = "主导「基于知识图谱的职场考证智能双向检索系统」研发，带领 5 人跨学科团队斩获挑战杯省级一等奖；负责全链路数据库建模、Supabase 云端高并发索引及 Android Jetpack Compose 端到端交互交付。"
-            )
-        )
-    )
-    val resumeSkillTags = MutableStateFlow(
-        listOf("Kotlin / Java", "Jetpack Compose", "Android SDK", "Spring Boot", "MySQL / Room", "Git敏捷协作", "高并发微服务", "系统架构设计")
-    )
-    val resumeCertifications = MutableStateFlow(
-        listOf("信息系统项目管理师 (软考高级)", "大学英语六级 CET-6 (580分)", "全国计算机等级考试四级", "法律职业资格 A 证 (备考通过)")
-    )
-    val resumeContestAwards = MutableStateFlow(
-        listOf(
-            "第十四届「挑战杯」中国大学生创业计划竞赛 全国金奖",
-            "中国国际大学生创新大赛 (原互联网+) 省级一等奖",
-            "全国大学生数学建模竞赛 (MCM/ICM) 国家二等奖",
-            "中国高校计算机大赛 (团体程序设计天梯赛) 全国一等奖"
-        )
-    )
-    val resumeHonors = MutableStateFlow("专业前 5% · 连续两年获国家励志奖学金 · 优秀共青团干部 · 挑战杯省级一等奖")
+    // --- 个人在线求职简历数据 (标准履历中心，首次登录全量默认设为「待填写」) ---
+    val resumeTargetJob = MutableStateFlow("待填写")
+    val resumeExpectSalary = MutableStateFlow("待填写")
+    val resumeExpectCity = MutableStateFlow("待填写")
+    val resumeJobStatus = MutableStateFlow("待填写")
+    val resumeEducationDegree = MutableStateFlow("待填写")
+    val resumeSelfIntro = MutableStateFlow("待填写")
+    val resumeWorkExperiences = MutableStateFlow(emptyList<ResumeWorkExp>())
+    val resumeSkillTags = MutableStateFlow(emptyList<String>())
+    val resumeCertifications = MutableStateFlow(emptyList<String>())
+    val resumeContestAwards = MutableStateFlow(emptyList<String>())
+    val resumeHonors = MutableStateFlow("待填写")
+
+    /**
+     * 重置所有个人信息为首次登录默认状态 (全量设为「待填写」)
+     */
+    fun resetProfileToDefault() {
+        userRealName.value = "待填写"
+        userNickname.value = "待填写"
+        userPhone.value = "待填写"
+        userEmail.value = "待填写"
+        userGender.value = "待填写"
+        userSchool.value = "待填写"
+        userGrade.value = "待填写"
+        userMajor.value = "待填写"
+        boundWeChat.value = "待填写"
+        isProfileCompleted.value = false
+        resumeTargetJob.value = "待填写"
+        resumeExpectSalary.value = "待填写"
+        resumeExpectCity.value = "待填写"
+        resumeJobStatus.value = "待填写"
+        resumeEducationDegree.value = "待填写"
+        resumeSelfIntro.value = "待填写"
+        resumeWorkExperiences.value = emptyList()
+        resumeSkillTags.value = emptyList()
+        resumeCertifications.value = emptyList()
+        resumeContestAwards.value = emptyList()
+        resumeHonors.value = "待填写"
+    }
 
     fun addWorkExperience(exp: ResumeWorkExp) {
         val current = resumeWorkExperiences.value.toMutableList()
@@ -1938,10 +1935,10 @@ class CareerViewModel(application: Application) : AndroidViewModel(application) 
                 val systemInstruction = if (recruiter.id == "TUTOR_AI") {
                     val certsList = resumeCertifications.value.joinToString(", ")
                     CareerPlannerSkill.buildSystemPrompt(
-                        userMajor = userMajor.value,
-                        userEducation = "${userGrade.value}（本科在读 · ${userSchool.value}）",
-                        userCerts = if (certsList.isBlank()) "暂无专业准入证书（待规划）" else certsList,
-                        userGoal = if (text.isBlank()) resumeTargetJob.value else text,
+                        userMajor = if (userMajor.value == "待填写") "普通全日制专业" else userMajor.value,
+                        userEducation = if (userSchool.value == "待填写") "本科在读" else "${userGrade.value}（本科在读 · ${userSchool.value}）",
+                        userCerts = if (certsList.isBlank() || certsList == "待填写") "暂无专业准入证书（待规划）" else certsList,
+                        userGoal = if (text.isBlank() || text == "待填写") (if (resumeTargetJob.value == "待填写") "软件研发与相关职业" else resumeTargetJob.value) else text,
                         matchedJobsJson = getMatchedJobsJsonForPlanning()
                     )
                 } else {
