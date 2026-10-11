@@ -101,6 +101,14 @@ fun PersonalMainScreen(
     val currentTab by viewModel.currentTab.collectAsState()
     val activeRecruiter by viewModel.activeRecruiter.collectAsState()
 
+    BackHandler(enabled = (activeRecruiter != null || currentTab != 0)) {
+        if (activeRecruiter != null) {
+            viewModel.activeRecruiter.value = null
+        } else if (currentTab != 0) {
+            viewModel.currentTab.value = 0
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -152,19 +160,26 @@ fun PersonalMainScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            when (currentTab) {
-                0 -> JobRecruitmentTabScreen(viewModel)
-                1 -> CampusCoCreateTabScreen(viewModel)
-                2 -> ChatTabScreen(viewModel)
-                3 -> UserProfileTabScreen(viewModel)
-            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 680.dp)
+            ) {
+                when (currentTab) {
+                    0 -> JobRecruitmentTabScreen(viewModel)
+                    1 -> CampusCoCreateTabScreen(viewModel)
+                    2 -> ChatTabScreen(viewModel)
+                    3 -> UserProfileTabScreen(viewModel)
+                }
 
-            // DeepSeek / AI 大模型 API 配置弹窗 (支持全局调出)
-            val showApiConfigDialog by viewModel.showApiConfigDialog.collectAsState()
-            if (showApiConfigDialog) {
-                DeepSeekApiDialog(viewModel = viewModel)
+                // DeepSeek / AI 大模型 API 配置弹窗 (支持全局调出)
+                val showApiConfigDialog by viewModel.showApiConfigDialog.collectAsState()
+                if (showApiConfigDialog) {
+                    DeepSeekApiDialog(viewModel = viewModel)
+                }
             }
         }
     }
@@ -1119,7 +1134,12 @@ fun ActiveChatRoomScreen(viewModel: CareerViewModel, recruiter: Recruiter) {
     var inputMessageText by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .navigationBarsPadding()
+    ) {
         // 顶部对话框 Header
         TopAppBar(
             title = {
@@ -3401,120 +3421,127 @@ fun CampusCoCreateTabScreen(viewModel: CareerViewModel) {
     var showIncompleteDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
             // 顶部渐变标题横幅
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .drawBehind {
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
-                                startY = 0f,
-                                endY = size.height
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBehind {
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(currentAnimeSkin.bgGradientStart, currentAnimeSkin.bgGradientEnd),
+                                    startY = 0f,
+                                    endY = size.height
+                                )
                             )
+                        }
+                        .padding(vertical = 24.dp, horizontal = 20.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "高校搭伙科创圈",
+                                fontSize = 22.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                            Button(
+                                onClick = { showCreateDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF007200)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.testTag("create_post_button")
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("发帖招募", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "打破学院壁垒：寻找跨学科比赛队友，获取真实在岗考证与实习内推咨询",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.9f)
                         )
                     }
-                    .padding(vertical = 24.dp, horizontal = 20.dp)
-            ) {
-                Column {
+                }
+            }
+
+            // 搜索过滤框与分类 Chips (可折叠顶栏一部分)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { viewModel.coCreateSearchQuery.value = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("cocreate_search_input"),
+                        placeholder = { Text("搜索比赛、相关证书、学院或技能标签...", fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.coCreateSearchQuery.value = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "清除")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF007200),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "高校搭伙科创圈",
-                            fontSize = 22.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                        Button(
-                            onClick = { showCreateDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF007200)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.testTag("create_post_button")
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("发帖招募", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        listOf("全部", "比赛组队", "实习咨询").forEach { type ->
+                            val isSelected = selectedType == type
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.selectedCoCreateType.value = type },
+                                label = { Text(type, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFE8F5E9),
+                                    selectedLabelColor = Color(0xFF007200)
+                                ),
+                                modifier = Modifier.testTag("filter_chip_${type}")
+                            )
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "打破学院壁垒：寻找跨学科比赛队友，获取真实在岗考证与实习内推咨询",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 搜索过滤框
-            OutlinedTextField(
-                value = query,
-                onValueChange = { viewModel.coCreateSearchQuery.value = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .testTag("cocreate_search_input"),
-                placeholder = { Text("搜索比赛、相关证书、学院或技能标签...", fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.coCreateSearchQuery.value = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "清除")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF007200),
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                )
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 筛选类型 Chips Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf("全部", "比赛组队", "实习咨询").forEach { type ->
-                    val isSelected = selectedType == type
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.selectedCoCreateType.value = type },
-                        label = { Text(type, fontWeight = FontWeight.Bold) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFE8F5E9),
-                            selectedLabelColor = Color(0xFF007200)
-                        ),
-                        modifier = Modifier.testTag("filter_chip_${type}")
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // 列表展示
             if (posts.isEmpty()) {
-                EmptyStateView("未找到相关互助招募贴，请尝试搜索其他考证或比赛关键词")
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        EmptyStateView("未找到相关互助招募贴，请尝试搜索其他考证或比赛关键词")
+                    }
+                }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                ) {
-                    items(posts, key = { it.id }) { post ->
+                items(posts, key = { it.id }) { post ->
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         CoCreatePostCard(
                             post = post,
                             onJoinToggle = {
@@ -6938,114 +6965,85 @@ fun JobRecruitmentTabScreen(viewModel: CareerViewModel) {
             }
         }
 
-        // 2. 📜 职业资格两类划分政策释义 (折叠/展开组件，默认紧凑模式仅占 36dp，可一键展开完整释义)
+        // 2. 📜 国家职业资格分类政策释义 (横向可滑动组件)
         item {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { isPolicyExpanded = !isPolicyExpanded }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("📜", fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = "国家职业资格分类政策释义",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFFEE2E2)
-                            ) {
-                                Text("准入类", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFE0F2FE)
-                            ) {
-                                Text("水平类", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-                            }
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📜", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = if (isPolicyExpanded) "收起 ▴" else "展开 ▾",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
+                            text = "国家职业资格分类政策释义",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-
-                    AnimatedVisibility(
-                        visible = isPolicyExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column(modifier = Modifier.padding(top = 8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFFEE2E2),
-                                    border = BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Text(
-                                            text = "🚨 准入类：无证不得执业",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFDC2626)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "关系公共安全与公众利益，国家依法依规实行从业准入，必须先取得证书方可独立执业（如法考、CPA、教资、医师等）。",
-                                            fontSize = 9.5.sp,
-                                            lineHeight = 13.sp,
-                                            color = Color(0xFF7F1D1D)
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFE0F2FE),
-                                    border = BorderStroke(0.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Text(
-                                            text = "💡 水平评价类：衡量技术水平",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0284C7)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "非强制执业准入，用于评价专业技能素养，供用人单位聘任、定级定薪与职称评定参考（如软考、CATTI等）。",
-                                            fontSize = 9.5.sp,
-                                            lineHeight = 13.sp,
-                                            color = Color(0xFF075985)
-                                        )
-                                    }
-                                }
+                    Text(
+                        text = "左右滑动查看 ↔",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFEE2E2),
+                            border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                            modifier = Modifier.width(280.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "🚨 准入类：无证不得执业",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFDC2626)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "关系公共安全与公众利益，国家依法依规实行从业准入，必须先取得证书方可独立执业（如法考、CPA、教资、医师等）。",
+                                    fontSize = 10.5.sp,
+                                    lineHeight = 15.sp,
+                                    color = Color(0xFF7F1D1D)
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFE0F2FE),
+                            border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                            modifier = Modifier.width(280.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "💡 水平评价类：衡量技术水平",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0284C7)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "非强制执业准入，用于评价专业技能素养，供用人单位聘任、定级定薪与职称评定参考（如软考、CATTI等）。",
+                                    fontSize = 10.5.sp,
+                                    lineHeight = 15.sp,
+                                    color = Color(0xFF075985)
+                                )
                             }
                         }
                     }

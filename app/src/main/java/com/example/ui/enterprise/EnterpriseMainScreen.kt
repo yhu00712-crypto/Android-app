@@ -1,5 +1,6 @@
 package com.example.ui.enterprise
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -33,6 +34,10 @@ fun EnterpriseMainScreen(
     val enterpriseProfile by viewModel.enterpriseProfile.collectAsState()
     val conversations by viewModel.enterpriseConversations.collectAsState()
     val totalUnread = conversations.count { it.hasUnread }
+
+    BackHandler(enabled = enterpriseTab != 0) {
+        viewModel.enterpriseCurrentTab.value = 0
+    }
 
     var openPostJobInManagement by remember { mutableStateOf(false) }
 

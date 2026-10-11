@@ -404,4 +404,48 @@ object SupabaseClient {
             emptyList()
         }
     }
+
+    /**
+     * 7. 查询 app_versions 表获取最新版本记录
+     */
+    suspend fun getLatestAppVersion(): AppVersionInfo? = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext null
+        try {
+            val urlStr = "${getBaseUrl()}app_versions?select=version_code,version_name,apk_url&order=version_code.desc&limit=1"
+            val httpUrl = urlStr.toHttpUrlOrNull() ?: return@withContext null
+            val request = Request.Builder()
+                .url(httpUrl)
+                .addHeader("apikey", getApiKey())
+                .addHeader("Authorization", "Bearer ${getApiKey()}")
+                .addHeader("Content-Type", "application/json")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+                val arr = JSONArray(body)
+                if (arr.length() > 0) {
+                    val obj = arr.getJSONObject(0)
+                    AppVersionInfo(
+                        versionCode = obj.optInt("version_code", 0),
+                        versionName = obj.optString("version_name", "1.0"),
+                        apkUrl = obj.optString("apk_url", "")
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getLatestAppVersion error: ${e.message}")
+            null
+        }
+    }
 }
+
+data class AppVersionInfo(
+    val versionCode: Int,
+    val versionName: String,
+    val apkUrl: String
+)
+
